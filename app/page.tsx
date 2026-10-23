@@ -11,7 +11,7 @@ export default async function Page() {
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-2xl flex-col justify-center gap-6 px-4 py-10 md:px-8">
       <header className="flex flex-col gap-2">
-        <p className="text-xs font-bold uppercase tracking-widest text-primary">Anyone Home</p>
+        <img src="/anyone-home-logo.svg" alt="Anyone Home by Entrata" className="h-10 w-auto self-start md:h-12" />
         <h1 className="text-balance text-3xl font-extrabold uppercase tracking-tight text-foreground md:text-4xl">
           AH AI Pod <span className="text-primary">Delivery Timelines</span>
         </h1>
