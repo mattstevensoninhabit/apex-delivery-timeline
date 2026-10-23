@@ -9,10 +9,10 @@ import {
 } from '@/lib/milestones'
 
 const statusLabel: Record<MilestoneStatus, string> = {
-  delivered: 'Delivered',
+  delivered: 'Complete',
   'at-risk': 'At risk',
   'in-progress': 'In progress',
-  'not-started': 'Not started',
+  'not-started': 'Planned',
 }
 
 function StatusDot({ status, className }: { status: MilestoneStatus; className?: string }) {
@@ -195,10 +195,9 @@ function FinalBadge() {
 
 function Legend() {
   const items: { label: string; node: React.ReactNode }[] = [
-    { label: 'Delivered', node: <StatusDot status="delivered" /> },
-    { label: 'At risk', node: <StatusDot status="at-risk" /> },
+    { label: 'Complete', node: <StatusDot status="delivered" /> },
     { label: 'In progress', node: <StatusDot status="in-progress" /> },
-    { label: 'Not started', node: <StatusDot status="not-started" /> },
+    { label: 'Planned', node: <StatusDot status="not-started" /> },
     { label: 'Today', node: <TodayMarker /> },
   ]
   return (
