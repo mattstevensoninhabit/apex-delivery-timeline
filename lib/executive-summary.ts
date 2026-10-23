@@ -1,4 +1,5 @@
 import type { jsPDF } from 'jspdf'
+import { buildConsolidatedTimeline } from './consolidated'
 import { formatMilestoneDate, parseIsoDate } from './dates'
 import { MILESTONE_STATUSES, type Milestone, type MilestoneStatus, type Project } from './milestones'
 
@@ -11,6 +12,9 @@ const AMBER: Rgb = [214, 137, 16]
 const MUTED: Rgb = [95, 108, 125]
 const RULE: Rgb = [214, 224, 234]
 const ROW_TINT: Rgb = [242, 247, 251]
+const TODAY_RED: Rgb = [214, 48, 49]
+
+const TIMELINE_ROW = 22
 
 const PAGE_MARGIN = 48
 const FOOTER_SPACE = 40
@@ -67,6 +71,10 @@ class SummaryWriter {
     if (kind === 'text') this.pdf.setTextColor(...rgb)
     else if (kind === 'fill') this.pdf.setFillColor(...rgb)
     else this.pdf.setDrawColor(...rgb)
+  }
+
+  space(amount: number) {
+    this.y += amount
   }
 
   ensure(space: number) {
@@ -282,6 +290,192 @@ class SummaryWriter {
     this.y += 18
   }
 
+  timeline(projects: Project[], { showLaneLabels }: { showLaneLabels: boolean }) {
+    const timeline = buildConsolidatedTimeline(projects)
+    if (!timeline.hasDated) {
+      this.note('Dates to be confirmed - no milestones have been scheduled yet.')
+      return
+    }
+
+    const gutter = showLaneLabels ? 110 : 0
+    const tbcSpace = timeline.lanes.some((lane) => lane.unscheduled.length > 0) ? 44 : 8
+    const chartX = PAGE_MARGIN + gutter + 10
+    const chartW = this.contentWidth - gutter - 10 - tbcSpace
+    const xAt = (position: number) => chartX + (position / 100) * chartW
+
+    const layouts = timeline.lanes.map((lane) => {
+      const finalX = lane.final?.position !== undefined ? xAt(lane.final.position) : undefined
+      const finalCollides =
+        finalX !== undefined && lane.dated.some((m) => m.row === 0 && Math.abs(xAt(m.position) - finalX) < 20)
+      const finalRow = finalCollides ? lane.rows : 0
+      const rows = Math.max(lane.rows, finalRow + 1)
+      return { lane, finalX, finalRow, height: rows * TIMELINE_ROW + 14 }
+    })
+
+    const tagSpace = timeline.todayPosition !== undefined ? 16 : 0
+    const axisHeight = 30
+    const legendHeight = 30
+    const lanesHeight = layouts.reduce((sum, l) => sum + l.height, 0)
+    this.ensure(tagSpace + axisHeight + lanesHeight + legendHeight)
+
+    const axisTop = this.y + tagSpace
+    const lanesTop = axisTop + axisHeight
+    const lanesBottom = lanesTop + lanesHeight
+
+    this.pdf.setFont('helvetica', 'bold')
+    this.pdf.setFontSize(7.5)
+    this.color(NAVY, 'text')
+    for (const month of timeline.months) {
+      this.pdf.text(month.label.toUpperCase(), xAt(month.position) + 2, axisTop + 9, { charSpace: 0.8 })
+    }
+
+    const tickSpacing = timeline.ticks.length > 1 ? xAt(timeline.ticks[1].position) - xAt(timeline.ticks[0].position) : chartW
+    const labelEvery = Math.max(1, Math.ceil(16 / tickSpacing))
+    this.pdf.setFont('helvetica', 'normal')
+    this.pdf.setFontSize(7)
+    timeline.ticks.forEach((tick, i) => {
+      if (i % labelEvery === 0) {
+        this.color(MUTED, 'text')
+        this.pdf.text(tick.label, xAt(tick.position) + 2, axisTop + 22)
+      }
+    })
+
+    let laneY = lanesTop
+    layouts.forEach((layout, i) => {
+      if (i % 2 === 0) {
+        this.color(ROW_TINT, 'fill')
+        this.pdf.rect(PAGE_MARGIN, laneY, this.contentWidth, layout.height, 'F')
+      }
+      if (showLaneLabels) {
+        this.pdf.setFont('helvetica', 'bold')
+        this.pdf.setFontSize(8.5)
+        this.color(NAVY, 'text')
+        const lines = (this.pdf.splitTextToSize(layout.lane.project.tabLabel, gutter - 8) as string[]).slice(0, 2)
+        const textTop = laneY + layout.height / 2 - (lines.length * 10) / 2 + 7
+        this.pdf.text(lines, PAGE_MARGIN + 8, textTop)
+      }
+      laneY += layout.height
+    })
+
+    this.color(RULE, 'draw')
+    this.pdf.setLineWidth(0.5)
+    timeline.ticks.forEach((tick) => {
+      const x = xAt(tick.position)
+      this.pdf.line(x, axisTop + 13, x, lanesBottom)
+    })
+    this.pdf.line(PAGE_MARGIN, lanesTop, PAGE_MARGIN + this.contentWidth, lanesTop)
+    this.pdf.line(PAGE_MARGIN, lanesBottom, PAGE_MARGIN + this.contentWidth, lanesBottom)
+
+    if (timeline.todayPosition !== undefined) {
+      const x = xAt(timeline.todayPosition)
+      this.color(TODAY_RED, 'draw')
+      this.pdf.setLineWidth(1)
+      this.pdf.setLineDashPattern([3, 2], 0)
+      this.pdf.line(x, axisTop - 2, x, lanesBottom)
+      this.pdf.setLineDashPattern([], 0)
+      this.color(TODAY_RED, 'fill')
+      this.pdf.roundedRect(x - 15, this.y, 30, 11, 2, 2, 'F')
+      this.pdf.setFont('helvetica', 'bold')
+      this.pdf.setFontSize(6)
+      this.pdf.setTextColor(255, 255, 255)
+      this.pdf.text('TODAY', x, this.y + 7.8, { align: 'center', charSpace: 0.4 })
+    }
+
+    laneY = lanesTop
+    for (const layout of layouts) {
+      const rowCenter = (row: number) => laneY + 7 + row * TIMELINE_ROW + TIMELINE_ROW / 2
+      for (const milestone of layout.lane.dated) {
+        this.drawDot(xAt(milestone.position), rowCenter(milestone.row), milestone, STATUS_COLOR[milestone.status])
+      }
+      if (layout.finalX !== undefined && layout.lane.final) {
+        this.drawDiamond(layout.finalX, rowCenter(layout.finalRow), String(layout.lane.final.id))
+      }
+      if (layout.lane.unscheduled.length > 0) {
+        this.pdf.setFont('helvetica', 'bold')
+        this.pdf.setFontSize(7.5)
+        this.color(MUTED, 'text')
+        this.pdf.text(`+${layout.lane.unscheduled.length} TBC`, PAGE_MARGIN + this.contentWidth - 6, rowCenter(0) + 2.5, {
+          align: 'right',
+        })
+      }
+      laneY += layout.height
+    }
+
+    this.y = lanesBottom + 16
+    this.drawLegend(timeline.todayPosition !== undefined)
+    this.y += legendHeight - 2
+  }
+
+  private drawDot(x: number, y: number, milestone: Milestone, fill: Rgb) {
+    if (milestone.dateSlipped && milestone.status !== 'delivered') {
+      this.color(AMBER, 'draw')
+      this.pdf.setLineWidth(1.5)
+      this.pdf.circle(x, y, 9.5, 'S')
+    }
+    this.color(fill, 'fill')
+    this.pdf.circle(x, y, 7, 'F')
+    this.pdf.setFont('helvetica', 'bold')
+    this.pdf.setFontSize(7)
+    this.pdf.setTextColor(255, 255, 255)
+    this.pdf.text(String(milestone.id), x, y + 2.5, { align: 'center' })
+  }
+
+  private drawDiamond(x: number, y: number, label: string, size = 9) {
+    this.color(NAVY, 'fill')
+    this.pdf.triangle(x - size, y, x, y - size, x + size, y, 'F')
+    this.pdf.triangle(x - size, y, x, y + size, x + size, y, 'F')
+    if (!label) return
+    this.pdf.setFont('helvetica', 'bold')
+    this.pdf.setFontSize(6.5)
+    this.pdf.setTextColor(255, 255, 255)
+    this.pdf.text(label, x, y + 2.3, { align: 'center' })
+  }
+
+  private drawLegend(showToday: boolean) {
+    const items: { label: string; draw: (x: number, y: number) => void }[] = [
+      ...(['delivered', 'in-progress', 'not-started', 'at-risk'] as MilestoneStatus[]).map((status) => ({
+        label: status === 'delivered' ? 'Complete' : status === 'not-started' ? 'Planned' : STATUS_LABEL[status],
+        draw: (x: number, y: number) => {
+          this.color(STATUS_COLOR[status], 'fill')
+          this.pdf.circle(x + 4, y, 4, 'F')
+        },
+      })),
+      {
+        label: 'Date moved',
+        draw: (x, y) => {
+          this.color(AMBER, 'draw')
+          this.pdf.setLineWidth(1.5)
+          this.pdf.circle(x + 4, y, 4, 'S')
+        },
+      },
+      { label: 'Final delivery', draw: (x, y) => this.drawDiamond(x + 4, y, '', 4.5) },
+    ]
+    if (showToday) {
+      items.push({
+        label: 'Today',
+        draw: (x, y) => {
+          this.color(TODAY_RED, 'draw')
+          this.pdf.setLineWidth(1)
+          this.pdf.setLineDashPattern([2, 1.5], 0)
+          this.pdf.line(x + 4, y - 5, x + 4, y + 5)
+          this.pdf.setLineDashPattern([], 0)
+        },
+      })
+    }
+
+    let x = PAGE_MARGIN
+    const y = this.y
+    this.pdf.setFontSize(8)
+    for (const item of items) {
+      item.draw(x, y)
+      this.pdf.setFont('helvetica', 'normal')
+      this.pdf.setFontSize(8)
+      this.color(MUTED, 'text')
+      this.pdf.text(item.label, x + 12, y + 2.8)
+      x += 12 + this.pdf.getTextWidth(item.label) + 16
+    }
+  }
+
   note(text: string) {
     this.ensure(30)
     this.pdf.setFont('helvetica', 'italic')
@@ -353,7 +547,13 @@ class SummaryWriter {
   }
 }
 
-function writeProject(writer: SummaryWriter, project: Project, today: number, eyebrow?: string) {
+function writeProject(
+  writer: SummaryWriter,
+  project: Project,
+  today: number,
+  { eyebrow, showTimeline }: { eyebrow?: string; showTimeline: boolean },
+  ) {
+  writer.ensure(180)
   writer.sectionTitle(project.tabLabel, eyebrow ?? project.tabDescription)
 
   if (project.milestones.length === 0) {
@@ -375,6 +575,8 @@ function writeProject(writer: SummaryWriter, project: Project, today: number, ey
         : 'TBC',
     },
   ])
+
+  if (showTimeline) writer.timeline([project], { showLaneLabels: false })
 
   writer.bulletList(
     'Current focus',
@@ -423,9 +625,14 @@ export async function downloadExecutiveSummary(projects: Project[], fileName: st
   if (isPortfolio) {
     writer.sectionTitle('Portfolio overview', 'At a glance')
     writer.overviewTable(projects, today)
-    projects.forEach((project, i) => writeProject(writer, project, today, `Project ${i + 1}`))
+    writer.sectionTitle('Portfolio timeline', 'Schedule')
+    writer.timeline(projects, { showLaneLabels: true })
+    writer.space(16)
+    projects.forEach((project, i) =>
+      writeProject(writer, project, today, { eyebrow: `Project ${i + 1}`, showTimeline: false }),
+    )
   } else {
-    writeProject(writer, projects[0], today)
+    writeProject(writer, projects[0], today, { showTimeline: true })
   }
 
   writer.footers(generatedOn)
