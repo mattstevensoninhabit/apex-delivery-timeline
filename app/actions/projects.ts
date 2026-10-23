@@ -81,3 +81,23 @@ export async function saveProject(
   revalidatePath('/admin')
   return { ok: true }
 }
+
+export async function reorderProjects(slugs: string[]): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!Array.isArray(slugs) || slugs.some((s) => typeof s !== 'string')) {
+    return { ok: false, error: 'Invalid order.' }
+  }
+
+  const existing = await db.select({ slug: projects.slug }).from(projects)
+  const known = new Set(existing.map((row) => row.slug))
+  if (slugs.length !== known.size || new Set(slugs).size !== slugs.length || slugs.some((s) => !known.has(s))) {
+    return { ok: false, error: 'Order must include every project exactly once.' }
+  }
+
+  for (const [position, slug] of slugs.entries()) {
+    await db.update(projects).set({ position }).where(eq(projects.slug, slug))
+  }
+
+  revalidatePath('/')
+  revalidatePath('/admin')
+  return { ok: true }
+}
