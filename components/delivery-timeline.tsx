@@ -235,14 +235,20 @@ export function DeliveryTimeline({ project }: { project: Project }) {
   return (
     <section
       aria-labelledby={titleId}
-      className="flex flex-col gap-6 rounded-lg bg-card p-6 text-card-foreground md:p-10"
+      className="timeline-panel flex flex-col gap-6 rounded-3xl p-6 md:p-10"
     >
-      <h2
-        id={titleId}
-        className="text-balance border-b-2 border-foreground pb-3 text-base font-bold uppercase tracking-widest text-primary md:text-lg"
-      >
-        {project.timelineTitle}
-      </h2>
+      <div className="flex flex-col gap-3 border-b border-border pb-5">
+        <p className="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.2em] text-primary">
+          <span aria-hidden="true" className="h-0.5 w-10 bg-primary" />
+          Delivery timeline
+        </p>
+        <h2
+          id={titleId}
+          className="text-balance text-2xl font-extrabold uppercase leading-tight tracking-tight text-foreground md:text-3xl"
+        >
+          {project.timelineTitle.replace(/\s+—\s+Delivery Timeline$/i, '')}
+        </h2>
+      </div>
       {hasMilestones ? (
         <>
           <HorizontalTimeline project={project} />

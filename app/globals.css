@@ -55,6 +55,22 @@
   --radius: 0.625rem;
 }
 
+.timeline-panel {
+  color-scheme: light;
+  --background: #ffffff;
+  --foreground: #0b1f3a;
+  --card: #f5f9fc;
+  --card-foreground: #0b1f3a;
+  --primary: #0e6b9a;
+  --primary-foreground: #ffffff;
+  --muted-foreground: #556273;
+  --border: #c8d6e3;
+  background:
+    radial-gradient(ellipse 60% 70% at 88% 8%, #dde8f1 0%, transparent 70%),
+    linear-gradient(180deg, #f5f9fc 0%, #eef4f9 100%);
+  color: var(--foreground);
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;
