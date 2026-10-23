@@ -1,4 +1,4 @@
-export const SITE_PASSWORD = 'inhabit'
+export const SITE_PASSWORD = process.env.SITE_PASSWORD || 'inhabit'
 export const AUTH_COOKIE = 'ah_site_auth'
 export const AUTH_MAX_AGE = 60 * 60 * 24 * 30
 
