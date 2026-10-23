@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useTransition, type FormEvent } from 'react'
+import { useRef, useState, useTransition, type ChangeEvent, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowDown, ArrowUp, Download, Plus, Trash2 } from 'lucide-react'
+import { ArrowDown, ArrowUp, Download, Plus, Trash2, Upload } from 'lucide-react'
+import { importTimelineCsv } from '@/lib/csv-import'
 import { saveProject, type ProjectInput } from '@/app/actions/projects'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { DatePicker } from '@/components/admin/date-picker'
@@ -19,6 +20,7 @@ const nextKey = () => `m-${keySeed++}`
 export function ProjectEditor({ project }: { project: Project }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
   const [tabLabel, setTabLabel] = useState(project.tabLabel)
@@ -67,6 +69,35 @@ export function ProjectEditor({ project }: { project: Project }) {
     ])
   }
 
+  async function handleImport(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    event.target.value = ''
+    if (!file) return
+    if (file.size > 512_000) {
+      setMessage({ type: 'error', text: 'That file is too large for a milestone CSV.' })
+      return
+    }
+    const result = importTimelineCsv(await file.text())
+    if (!result.ok) {
+      setMessage({ type: 'error', text: result.error })
+      return
+    }
+    const imported = result.data.milestones.map((m) => ({ ...m, key: nextKey() }))
+    setMilestones(imported)
+    setTodayKey(result.data.todayIndex !== null ? (imported[result.data.todayIndex]?.key ?? null) : null)
+    if (result.data.finalMilestone) {
+      setHasFinal(true)
+      setFinalTitle(result.data.finalMilestone.title)
+      setFinalDate(result.data.finalMilestone.date)
+    } else {
+      setHasFinal(false)
+    }
+    setMessage({
+      type: 'ok',
+      text: `Imported ${imported.length} milestone${imported.length === 1 ? '' : 's'} from ${file.name}. Review, then save changes.`,
+    })
+  }
+
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     setMessage(null)
@@ -112,6 +143,19 @@ export function ProjectEditor({ project }: { project: Project }) {
               <Download aria-hidden="true" />
               Download JSON
             </a>
+            <Button type="button" variant="outline" size="sm" onClick={() => fileInputRef.current?.click()}>
+              <Upload aria-hidden="true" />
+              Import CSV
+            </Button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".csv,text/csv"
+              className="sr-only"
+              tabIndex={-1}
+              aria-label="Import milestones CSV"
+              onChange={handleImport}
+            />
           </div>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
