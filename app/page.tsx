@@ -24,7 +24,7 @@ export default async function Page() {
             eyebrow: 'Overview',
             label: 'All Projects',
             description: 'Consolidated timeline',
-            panel: <ConsolidatedTimeline projects={projects.slice(1)} />,
+            panel: <ConsolidatedTimeline projects={projects} />,
           },
           ...projects.map((project, index) => ({
             slug: project.slug,
