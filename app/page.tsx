@@ -10,7 +10,12 @@ export default async function Page() {
 
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-2xl flex-col justify-center gap-6 px-4 py-10 md:px-8">
-      <h1 className="sr-only">Anyone Home AI program delivery timelines</h1>
+      <header className="flex flex-col gap-2">
+        <p className="text-xs font-bold uppercase tracking-widest text-primary">Anyone Home</p>
+        <h1 className="text-balance text-3xl font-extrabold uppercase tracking-tight text-foreground md:text-4xl">
+          AH AI Pod <span className="text-primary">Delivery Timelines</span>
+        </h1>
+      </header>
       <ProjectTabs
         tabs={projects.map((project) => ({
           slug: project.slug,

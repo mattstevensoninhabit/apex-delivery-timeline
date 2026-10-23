@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { ArrowDown, ArrowUp, Download, Plus, Trash2 } from 'lucide-react'
 import { saveProject, type ProjectInput } from '@/app/actions/projects'
 import { Button, buttonVariants } from '@/components/ui/button'
+import { DatePicker } from '@/components/admin/date-picker'
 import { MILESTONE_STATUSES, type MilestoneStatus, type Project } from '@/lib/milestones'
 
 type DraftMilestone = ProjectInput['milestones'][number] & { key: string }
@@ -179,15 +180,13 @@ export function ProjectEditor({ project }: { project: Project }) {
                     </Field>
                   </div>
                   <div className="md:col-span-3">
-                    <Field label="Date">
-                      <input
-                        className={inputClass}
+                    <FieldGroup label="Date">
+                      <DatePicker
+                        label={`Milestone ${index} date`}
                         value={m.date}
-                        placeholder="e.g. 15 Nov or TBC"
-                        onChange={(e) => updateMilestone(m.key, { date: e.target.value })}
-                        maxLength={40}
+                        onChange={(date) => updateMilestone(m.key, { date })}
                       />
-                    </Field>
+                    </FieldGroup>
                   </div>
                   <div className="md:col-span-3">
                     <Field label="Status">
@@ -247,9 +246,9 @@ export function ProjectEditor({ project }: { project: Project }) {
             <Field label="Title">
               <input className={inputClass} value={finalTitle} onChange={(e) => setFinalTitle(e.target.value)} required maxLength={200} />
             </Field>
-            <Field label="Date">
-              <input className={inputClass} value={finalDate} onChange={(e) => setFinalDate(e.target.value)} maxLength={40} />
-            </Field>
+            <FieldGroup label="Date">
+              <DatePicker label="Final delivery date" value={finalDate} onChange={setFinalDate} />
+            </FieldGroup>
           </div>
         )}
       </section>
@@ -266,6 +265,17 @@ export function ProjectEditor({ project }: { project: Project }) {
         </Button>
       </div>
     </form>
+  )
+}
+
+function FieldGroup({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-1.5 text-sm font-medium">
+      <span className="text-muted-foreground" aria-hidden="true">
+        {label}
+      </span>
+      {children}
+    </div>
   )
 }
 

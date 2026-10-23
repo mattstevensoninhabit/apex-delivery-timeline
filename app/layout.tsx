@@ -1,19 +1,19 @@
 import { Analytics } from '@vercel/analytics/next'
 import type { Metadata, Viewport } from 'next'
-import { Inter } from 'next/font/google'
+import { Montserrat } from 'next/font/google'
 import './globals.css'
 
-const inter = Inter({ subsets: ['latin'], variable: '--font-inter' })
+const montserrat = Montserrat({ subsets: ['latin'], variable: '--font-montserrat' })
 
 export const metadata: Metadata = {
-  title: 'Delivery Timeline — Anyone Home AI Lead Qualification',
-  description: 'Milestone delivery timeline from project logistics through MVP release.',
+  title: 'AH AI Pod — Delivery Timelines',
+  description: 'AH AI Pod delivery timelines for AI Lead Qualification, Agentic AI Resident, and AI Call Scoring.',
   generator: 'v0.app',
 }
 
 export const viewport: Viewport = {
-  colorScheme: 'light',
-  themeColor: '#efeeeb',
+  colorScheme: 'dark',
+  themeColor: '#071a33',
 }
 
 export default function RootLayout({
@@ -22,7 +22,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="en" className={`${inter.variable} bg-background`}>
+    <html lang="en" className={`${montserrat.variable} bg-background`}>
       <body className="font-sans antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}

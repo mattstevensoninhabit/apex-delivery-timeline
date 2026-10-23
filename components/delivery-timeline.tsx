@@ -1,3 +1,4 @@
+import { formatMilestoneDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import type { Milestone, MilestoneStatus, Project } from '@/lib/milestones'
 
@@ -54,7 +55,7 @@ function MilestoneLabel({ milestone }: { milestone: Milestone }) {
           milestone.dateSlipped ? 'font-semibold text-today' : 'text-muted-foreground',
         )}
       >
-        {milestone.date}
+        {formatMilestoneDate(milestone.date)}
       </span>
     </div>
   )
@@ -73,7 +74,7 @@ function HorizontalTimeline({ project }: { project: Project }) {
         return (
           <li key={milestone.id} className="flex flex-col items-center">
             <span className="sr-only">
-              {`Milestone ${milestone.id}: ${milestone.title}, ${milestone.date}, ${statusLabel[milestone.status]}${isToday ? ', current' : ''}`}
+              {`Milestone ${milestone.id}: ${milestone.title}, ${formatMilestoneDate(milestone.date)}, ${statusLabel[milestone.status]}${isToday ? ', current' : ''}`}
             </span>
             <div aria-hidden="true" className="flex h-36 w-full flex-col items-center justify-end gap-2 px-1">
               {above && (
@@ -165,7 +166,7 @@ function VerticalTimeline({ project }: { project: Project }) {
               </span>
               <span className="text-pretty text-sm leading-relaxed text-foreground">{milestone.title}</span>
               <span className="text-xs text-muted-foreground">
-                {milestone.date}
+                {formatMilestoneDate(milestone.date)}
                 <span className="sr-only">{`, ${statusLabel[milestone.status]}`}</span>
               </span>
             </div>
@@ -183,14 +184,14 @@ function VerticalTimeline({ project }: { project: Project }) {
 
 function FinalBadge({ milestone }: { milestone: FinalMilestone }) {
   return (
-    <div className="flex flex-col items-center gap-0.5 rounded-md bg-foreground px-5 py-3 text-center text-background">
+    <div className="flex flex-col items-center gap-0.5 rounded-md bg-primary px-5 py-3 text-center text-primary-foreground">
       <span className="text-[11px] font-medium uppercase tracking-widest opacity-70">
         Milestone {milestone.id}
       </span>
       <span className="whitespace-nowrap text-sm font-bold uppercase tracking-widest">
         {milestone.title}
       </span>
-      <span className="text-xs font-semibold uppercase tracking-widest">{milestone.date}</span>
+      <span className="text-xs font-semibold uppercase tracking-widest">{formatMilestoneDate(milestone.date)}</span>
     </div>
   )
 }

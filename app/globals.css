@@ -3,7 +3,7 @@
 @import 'shadcn/tailwind.css';
 
 @theme inline {
-  --font-sans: var(--font-inter), 'Inter', system-ui, sans-serif;
+  --font-sans: var(--font-montserrat), 'Montserrat', system-ui, sans-serif;
   --color-warning: var(--warning);
   --color-today: var(--today);
   --color-ring: var(--ring);
@@ -31,27 +31,27 @@
 }
 
 :root {
-  color-scheme: light;
-  --background: #efeeeb;
-  --foreground: #16161d;
-  --card: #fbfaf8;
-  --card-foreground: #16161d;
-  --popover: #fbfaf8;
-  --popover-foreground: #16161d;
-  --primary: #3a2fd6;
-  --primary-foreground: #fbfaf8;
-  --secondary: #e6e5e1;
-  --secondary-foreground: #16161d;
-  --muted: #e6e5e1;
-  --muted-foreground: #6b6a72;
-  --accent: #e6e5e1;
-  --accent-foreground: #16161d;
-  --warning: #c98d58;
-  --today: #e0352b;
-  --destructive: #e0352b;
-  --border: #d6d5d1;
-  --input: #d6d5d1;
-  --ring: #3a2fd6;
+  color-scheme: dark;
+  --background: #071a33;
+  --foreground: #ffffff;
+  --card: #1a3f6b;
+  --card-foreground: #ffffff;
+  --popover: #1a3f6b;
+  --popover-foreground: #ffffff;
+  --primary: #87cf36;
+  --primary-foreground: #09213f;
+  --secondary: #24507f;
+  --secondary-foreground: #ffffff;
+  --muted: #24507f;
+  --muted-foreground: #a9b8ca;
+  --accent: #143459;
+  --accent-foreground: #ffffff;
+  --warning: #f2a541;
+  --today: #ff5a4f;
+  --destructive: #ff5a4f;
+  --border: #234a75;
+  --input: #234a75;
+  --ring: #87cf36;
   --radius: 0.625rem;
 }
 
