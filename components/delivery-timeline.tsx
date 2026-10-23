@@ -5,7 +5,7 @@ import type { Milestone, MilestoneStatus, Project } from '@/lib/milestones'
 
 type FinalMilestone = NonNullable<Project['finalMilestone']>
 
-const statusLabel: Record<MilestoneStatus, string> = {
+export const statusLabel: Record<MilestoneStatus, string> = {
   delivered: 'Complete',
   'at-risk': 'At risk',
   'in-progress': 'In progress',
@@ -197,7 +197,7 @@ function FinalBadge({ milestone }: { milestone: FinalMilestone }) {
   )
 }
 
-function Legend() {
+export function Legend() {
   const items: { label: string; node: React.ReactNode }[] = [
     { label: 'Complete', node: <StatusDot status="delivered" /> },
     { label: 'In progress', node: <StatusDot status="in-progress" /> },
@@ -254,7 +254,11 @@ export function DeliveryTimeline({ project }: { project: Project }) {
           </h2>
         </div>
         {hasMilestones && (
-          <TimelineExport targetId={exportId} fileName={`${project.slug}-delivery-timeline`} />
+          <TimelineExport
+            targetId={exportId}
+            fileName={`${project.slug}-delivery-timeline`}
+            projects={[project]}
+          />
         )}
       </div>
       {hasMilestones ? (

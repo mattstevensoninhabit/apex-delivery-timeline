@@ -1,4 +1,5 @@
 import Link from 'next/link'
+import { ConsolidatedTimeline } from '@/components/consolidated-timeline'
 import { DeliveryTimeline } from '@/components/delivery-timeline'
 import { ProjectTabs } from '@/components/project-tabs'
 import { getProjects } from '@/lib/projects'
@@ -17,12 +18,22 @@ export default async function Page() {
         </h1>
       </header>
       <ProjectTabs
-        tabs={projects.map((project) => ({
-          slug: project.slug,
-          label: project.tabLabel,
-          description: project.tabDescription,
-          panel: <DeliveryTimeline project={project} />,
-        }))}
+        tabs={[
+          {
+            slug: 'all',
+            eyebrow: 'Overview',
+            label: 'All Projects',
+            description: 'Consolidated timeline',
+            panel: <ConsolidatedTimeline projects={projects} />,
+          },
+          ...projects.map((project, index) => ({
+            slug: project.slug,
+            eyebrow: `Project ${index + 1}`,
+            label: project.tabLabel,
+            description: project.tabDescription,
+            panel: <DeliveryTimeline project={project} />,
+          })),
+        ]}
       />
       <Link
         href="/admin"

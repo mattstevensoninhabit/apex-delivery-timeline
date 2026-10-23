@@ -6,6 +6,9 @@
   --font-sans: var(--font-montserrat), 'Montserrat', system-ui, sans-serif;
   --color-warning: var(--warning);
   --color-today: var(--today);
+  --color-lane-1: var(--lane-1);
+  --color-lane-2: var(--lane-2);
+  --color-lane-3: var(--lane-3);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -48,6 +51,9 @@
   --accent-foreground: #ffffff;
   --warning: #f2a541;
   --today: #ff5a4f;
+  --lane-1: #0e6b9a;
+  --lane-2: #5a9e1f;
+  --lane-3: #d9822b;
   --destructive: #ff5a4f;
   --border: #234a75;
   --input: #234a75;

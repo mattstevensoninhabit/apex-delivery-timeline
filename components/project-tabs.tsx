@@ -3,7 +3,7 @@
 import { useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 
-type Tab = { slug: string; label: string; description: string; panel: ReactNode }
+type Tab = { slug: string; eyebrow?: string; label: string; description: string; panel: ReactNode }
 
 export function ProjectTabs({ tabs }: { tabs: Tab[] }) {
   const [active, setActive] = useState(tabs[0]?.slug)
@@ -53,7 +53,7 @@ export function ProjectTabs({ tabs }: { tabs: Tab[] }) {
               )}
             >
               <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
-                Project {index + 1}
+                {tab.eyebrow ?? `Project ${index + 1}`}
               </span>
               <span className={cn('text-base font-bold', selected && 'text-primary')}>{tab.label}</span>
               <span className="text-sm">{tab.description}</span>

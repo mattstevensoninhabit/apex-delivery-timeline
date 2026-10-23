@@ -1,10 +1,17 @@
 'use client'
 
 import { useState } from 'react'
-import { Download, FileText, ImageIcon, Loader2 } from 'lucide-react'
+import { ClipboardList, Download, FileText, ImageIcon, Loader2 } from 'lucide-react'
+import type { Project } from '@/lib/milestones'
 import { cn } from '@/lib/utils'
 
-type Format = 'jpeg' | 'pdf'
+type Format = 'jpeg' | 'pdf' | 'summary'
+
+const PENDING_LABEL: Record<Format, string> = {
+  jpeg: 'JPEG',
+  pdf: 'PDF',
+  summary: 'executive summary',
+}
 
 const EXPORT_IGNORE_ATTR = 'data-export-ignore'
 
@@ -29,7 +36,15 @@ function triggerDownload(href: string, filename: string) {
   link.click()
 }
 
-export function TimelineExport({ targetId, fileName }: { targetId: string; fileName: string }) {
+export function TimelineExport({
+  targetId,
+  fileName,
+  projects,
+}: {
+  targetId: string
+  fileName: string
+  projects: Project[]
+}) {
   const [pending, setPending] = useState<Format | null>(null)
   const [error, setError] = useState<string | null>(null)
 
@@ -39,6 +54,11 @@ export function TimelineExport({ targetId, fileName }: { targetId: string; fileN
     setPending(format)
     setError(null)
     try {
+      if (format === 'summary') {
+        const { downloadExecutiveSummary } = await import('@/lib/executive-summary')
+        await downloadExecutiveSummary(projects, `${fileName}-executive-summary`)
+        return
+      }
       const { dataUrl, width, height } = await renderTimeline(target)
       if (format === 'jpeg') {
         triggerDownload(dataUrl, `${fileName}.jpg`)
@@ -93,9 +113,22 @@ export function TimelineExport({ targetId, fileName }: { targetId: string; fileN
           )}
           PDF
         </button>
+        <button
+          type="button"
+          className={cn(buttonClass, 'border-primary/60')}
+          disabled={pending !== null}
+          onClick={() => handleExport('summary')}
+        >
+          {pending === 'summary' ? (
+            <Loader2 aria-hidden="true" className="size-4 animate-spin" />
+          ) : (
+            <ClipboardList aria-hidden="true" className="size-4" />
+          )}
+          Executive summary
+        </button>
       </div>
       <p role="status" className={cn('text-xs text-destructive', !error && 'sr-only')}>
-        {error ?? (pending ? `Exporting ${pending.toUpperCase()}…` : '')}
+        {error ?? (pending ? `Exporting ${PENDING_LABEL[pending]}…` : '')}
       </p>
     </div>
   )
