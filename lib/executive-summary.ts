@@ -485,6 +485,25 @@ class SummaryWriter {
     this.y += 30
   }
 
+  notesBlock(text: string) {
+    this.ensure(40)
+    this.pdf.setFont('helvetica', 'bold')
+    this.pdf.setFontSize(9)
+    this.color(NAVY, 'text')
+    this.pdf.text('NOTES', PAGE_MARGIN, this.y, { charSpace: 0.8 })
+    this.y += 14
+    this.pdf.setFont('helvetica', 'normal')
+    this.pdf.setFontSize(10)
+    this.color(MUTED, 'text')
+    const lines = this.pdf.splitTextToSize(text, this.contentWidth) as string[]
+    for (const line of lines) {
+      this.ensure(14)
+      this.pdf.text(line, PAGE_MARGIN, this.y)
+      this.y += 13
+    }
+    this.y += 10
+  }
+
   overviewTable(projects: Project[], today: number) {
     const cols = [PAGE_MARGIN + 8, PAGE_MARGIN + 160, PAGE_MARGIN + 250, PAGE_MARGIN + 350]
     this.ensure(40)
@@ -558,6 +577,7 @@ function writeProject(
 
   if (project.milestones.length === 0) {
     writer.note('Milestones have not been defined for this project yet.')
+    if (project.notes) writer.notesBlock(project.notes)
     return
   }
 
@@ -575,6 +595,8 @@ function writeProject(
         : 'TBC',
     },
   ])
+
+  if (project.notes) writer.notesBlock(project.notes)
 
   if (showTimeline) writer.timeline([project], { showLaneLabels: false })
 

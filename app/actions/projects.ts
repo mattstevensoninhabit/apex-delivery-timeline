@@ -13,7 +13,10 @@ export type ProjectInput = {
   todayIndex: number | null
   milestones: { title: string; date: string; status: MilestoneStatus; dateSlipped: boolean }[]
   finalMilestone: { title: string; date: string } | null
+  notes: string
 }
+
+const MAX_NOTES = 2000
 
 const VALID_STATUSES = new Set<string>(['delivered', 'at-risk', 'in-progress', 'not-started'] satisfies MilestoneStatus[])
 const MAX_MILESTONES = 50
@@ -70,6 +73,7 @@ export async function saveProject(
       todayMilestoneId: todayIndex,
       milestones,
       finalMilestone,
+      notes: clean(input.notes, MAX_NOTES),
       updatedAt: sql`now()`,
     })
     .where(eq(projects.slug, slug))
@@ -80,6 +84,49 @@ export async function saveProject(
   revalidatePath('/')
   revalidatePath('/admin')
   return { ok: true }
+}
+
+function slugify(value: string) {
+  return (
+    value
+      .toLowerCase()
+      .normalize('NFKD')
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '')
+      .slice(0, 60) || 'project'
+  )
+}
+
+export async function createProject(input: {
+  name: string
+  description: string
+}): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
+  const tabLabel = clean(input?.name, 80)
+  if (!tabLabel) return { ok: false, error: 'Project name is required.' }
+
+  const existing = await db.select({ slug: projects.slug, position: projects.position }).from(projects)
+  const taken = new Set(existing.map((row) => row.slug))
+  const base = slugify(tabLabel)
+  let slug = base
+  for (let n = 2; taken.has(slug); n++) slug = `${base}-${n}`
+
+  const position = existing.reduce((max, row) => Math.max(max, row.position), -1) + 1
+
+  await db.insert(projects).values({
+    slug,
+    position,
+    tabLabel,
+    tabDescription: clean(input?.description, 120),
+    timelineTitle: `${tabLabel} Delivery Timeline`.slice(0, 200),
+    todayMilestoneId: null,
+    milestones: [],
+    finalMilestone: null,
+    notes: '',
+  })
+
+  revalidatePath('/')
+  revalidatePath('/admin')
+  return { ok: true, slug }
 }
 
 export async function reorderProjects(slugs: string[]): Promise<{ ok: true } | { ok: false; error: string }> {

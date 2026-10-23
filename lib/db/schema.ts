@@ -10,5 +10,6 @@ export const projects = pgTable('projects', {
   todayMilestoneId: integer('today_milestone_id'),
   milestones: jsonb('milestones').$type<Milestone[]>().notNull().default([]),
   finalMilestone: jsonb('final_milestone').$type<NonNullable<Project['finalMilestone']>>(),
+  notes: text('notes').notNull().default(''),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
