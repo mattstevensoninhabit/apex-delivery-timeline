@@ -1,12 +1,7 @@
 import { cn } from '@/lib/utils'
-import {
-  finalMilestone,
-  milestones,
-  timelineTitle,
-  todayMilestoneId,
-  type Milestone,
-  type MilestoneStatus,
-} from '@/lib/milestones'
+import type { Milestone, MilestoneStatus, Project } from '@/lib/milestones'
+
+type FinalMilestone = NonNullable<Project['finalMilestone']>
 
 const statusLabel: Record<MilestoneStatus, string> = {
   delivered: 'Complete',
@@ -65,9 +60,13 @@ function MilestoneLabel({ milestone }: { milestone: Milestone }) {
   )
 }
 
-function HorizontalTimeline() {
+function HorizontalTimeline({ project }: { project: Project }) {
+  const { milestones, todayMilestoneId, finalMilestone } = project
   return (
-    <ol className="hidden grid-cols-[repeat(10,minmax(0,1fr))_auto] md:grid">
+    <ol
+      className="hidden md:grid"
+      style={{ gridTemplateColumns: `repeat(${milestones.length}, minmax(0, 1fr)) auto` }}
+    >
       {milestones.map((milestone, index) => {
         const above = index % 2 === 0
         const isToday = milestone.id === todayMilestoneId
@@ -118,14 +117,15 @@ function HorizontalTimeline() {
           <span aria-hidden="true" className="h-8 w-1 bg-foreground" />
         </div>
         <div className="flex h-36 items-start pl-4 pt-3">
-          <FinalBadge />
+          {finalMilestone && <FinalBadge milestone={finalMilestone} />}
         </div>
       </li>
     </ol>
   )
 }
 
-function VerticalTimeline() {
+function VerticalTimeline({ project }: { project: Project }) {
+  const { milestones, todayMilestoneId, finalMilestone } = project
   return (
     <ol className="flex flex-col md:hidden">
       {milestones.map((milestone, index) => {
@@ -172,23 +172,25 @@ function VerticalTimeline() {
           </li>
         )
       })}
-      <li className="pt-2">
-        <FinalBadge />
-      </li>
+      {finalMilestone && (
+        <li className="pt-2">
+          <FinalBadge milestone={finalMilestone} />
+        </li>
+      )}
     </ol>
   )
 }
 
-function FinalBadge() {
+function FinalBadge({ milestone }: { milestone: FinalMilestone }) {
   return (
     <div className="flex flex-col items-center gap-0.5 rounded-md bg-foreground px-5 py-3 text-center text-background">
       <span className="text-[11px] font-medium uppercase tracking-widest opacity-70">
-        Milestone {finalMilestone.id}
+        Milestone {milestone.id}
       </span>
       <span className="whitespace-nowrap text-sm font-bold uppercase tracking-widest">
-        {finalMilestone.title}
+        {milestone.title}
       </span>
-      <span className="text-xs font-semibold uppercase tracking-widest">{finalMilestone.date}</span>
+      <span className="text-xs font-semibold uppercase tracking-widest">{milestone.date}</span>
     </div>
   )
 }
@@ -215,21 +217,40 @@ function Legend() {
   )
 }
 
-export function DeliveryTimeline() {
+function EmptyTimeline() {
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-md border-2 border-dashed border-border px-6 py-16 text-center">
+      <p className="text-base font-semibold text-foreground">Milestones not yet defined</p>
+      <p className="max-w-md text-pretty text-sm leading-relaxed text-muted-foreground">
+        Add this project&apos;s milestones to see its delivery timeline here.
+      </p>
+    </div>
+  )
+}
+
+export function DeliveryTimeline({ project }: { project: Project }) {
+  const titleId = `timeline-title-${project.slug}`
+  const hasMilestones = project.milestones.length > 0
   return (
     <section
-      aria-labelledby="timeline-title"
+      aria-labelledby={titleId}
       className="flex flex-col gap-6 rounded-lg bg-card p-6 text-card-foreground md:p-10"
     >
-      <h1
-        id="timeline-title"
+      <h2
+        id={titleId}
         className="text-balance border-b-2 border-foreground pb-3 text-base font-bold uppercase tracking-widest text-primary md:text-lg"
       >
-        {timelineTitle}
-      </h1>
-      <HorizontalTimeline />
-      <VerticalTimeline />
-      <Legend />
+        {project.timelineTitle}
+      </h2>
+      {hasMilestones ? (
+        <>
+          <HorizontalTimeline project={project} />
+          <VerticalTimeline project={project} />
+          <Legend />
+        </>
+      ) : (
+        <EmptyTimeline />
+      )}
     </section>
   )
 }
