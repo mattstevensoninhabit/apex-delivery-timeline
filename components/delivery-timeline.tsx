@@ -1,5 +1,6 @@
 import { formatMilestoneDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
+import { TimelineExport } from '@/components/timeline-export'
 import type { Milestone, MilestoneStatus, Project } from '@/lib/milestones'
 
 type FinalMilestone = NonNullable<Project['finalMilestone']>
@@ -231,23 +232,30 @@ function EmptyTimeline() {
 
 export function DeliveryTimeline({ project }: { project: Project }) {
   const titleId = `timeline-title-${project.slug}`
+  const exportId = `timeline-export-${project.slug}`
   const hasMilestones = project.milestones.length > 0
   return (
     <section
+      id={exportId}
       aria-labelledby={titleId}
       className="timeline-panel flex flex-col gap-6 rounded-3xl p-6 md:p-10"
     >
-      <div className="flex flex-col gap-3 border-b border-border pb-5">
-        <p className="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.2em] text-primary">
-          <span aria-hidden="true" className="h-0.5 w-10 bg-primary" />
-          Delivery timeline
-        </p>
-        <h2
-          id={titleId}
-          className="text-balance text-2xl font-extrabold uppercase leading-tight tracking-tight text-foreground md:text-3xl"
-        >
-          {project.timelineTitle.replace(/\s+—\s+Delivery Timeline$/i, '')}
-        </h2>
+      <div className="flex flex-col gap-4 border-b border-border pb-5 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-3">
+          <p className="flex items-center gap-3 text-xs font-bold uppercase tracking-[0.2em] text-primary">
+            <span aria-hidden="true" className="h-0.5 w-10 bg-primary" />
+            Delivery timeline
+          </p>
+          <h2
+            id={titleId}
+            className="text-balance text-2xl font-extrabold uppercase leading-tight tracking-tight text-foreground md:text-3xl"
+          >
+            {project.timelineTitle.replace(/\s+—\s+Delivery Timeline$/i, '')}
+          </h2>
+        </div>
+        {hasMilestones && (
+          <TimelineExport targetId={exportId} fileName={`${project.slug}-delivery-timeline`} />
+        )}
       </div>
       {hasMilestones ? (
         <>

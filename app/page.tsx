@@ -13,7 +13,7 @@ export default async function Page() {
       <header className="flex flex-col gap-2">
         <img src="/anyone-home-logo.svg" alt="Anyone Home by Entrata" className="h-10 w-auto self-start md:h-12" />
         <h1 className="text-balance text-3xl font-extrabold uppercase tracking-tight text-foreground md:text-4xl">
-          AH AI Pod <span className="text-primary">Delivery Timelines</span>
+          AI Pod <span className="text-primary">Delivery Timelines</span>
         </h1>
       </header>
       <ProjectTabs
