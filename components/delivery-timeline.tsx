@@ -261,6 +261,12 @@ export function DeliveryTimeline({ project }: { project: Project }) {
           />
         )}
       </div>
+      {project.notes ? (
+        <aside aria-label="Project notes" className="flex flex-col gap-1.5 rounded-xl border border-border bg-card px-5 py-4">
+          <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Project notes</p>
+          <p className="whitespace-pre-line text-pretty text-sm leading-relaxed text-muted-foreground">{project.notes}</p>
+        </aside>
+      ) : null}
       {hasMilestones ? (
         <>
           <HorizontalTimeline project={project} />

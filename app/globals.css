@@ -9,6 +9,8 @@
   --color-lane-1: var(--lane-1);
   --color-lane-2: var(--lane-2);
   --color-lane-3: var(--lane-3);
+  --color-lane-4: var(--lane-4);
+  --color-lane-5: var(--lane-5);
   --color-ring: var(--ring);
   --color-input: var(--input);
   --color-border: var(--border);
@@ -54,6 +56,8 @@
   --lane-1: #0e6b9a;
   --lane-2: #5a9e1f;
   --lane-3: #d9822b;
+  --lane-4: #7a5fb0;
+  --lane-5: #2a9d8f;
   --destructive: #ff5a4f;
   --border: #234a75;
   --input: #234a75;

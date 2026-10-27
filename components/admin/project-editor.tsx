@@ -26,6 +26,7 @@ export function ProjectEditor({ project }: { project: Project }) {
   const [tabLabel, setTabLabel] = useState(project.tabLabel)
   const [tabDescription, setTabDescription] = useState(project.tabDescription)
   const [timelineTitle, setTimelineTitle] = useState(project.timelineTitle)
+  const [notes, setNotes] = useState(project.notes ?? '')
   const [milestones, setMilestones] = useState<DraftMilestone[]>(() =>
     project.milestones.map((m) => ({
       key: nextKey(),
@@ -109,6 +110,7 @@ export function ProjectEditor({ project }: { project: Project }) {
       todayIndex: todayIndex >= 0 ? todayIndex : null,
       milestones: milestones.map(({ title, date, status, dateSlipped }) => ({ title, date, status, dateSlipped })),
       finalMilestone: hasFinal ? { title: finalTitle, date: finalDate } : null,
+      notes,
     }
     startTransition(async () => {
       const result = await saveProject(project.slug, input)
@@ -159,16 +161,33 @@ export function ProjectEditor({ project }: { project: Project }) {
           </div>
         </div>
         <div className="grid gap-4 md:grid-cols-2">
-          <Field label="Project name (tab label)">
+          <Field label="Project name">
             <input className={inputClass} value={tabLabel} onChange={(e) => setTabLabel(e.target.value)} required maxLength={80} />
           </Field>
-          <Field label="Tab description">
+          <Field label="Project description">
             <input className={inputClass} value={tabDescription} onChange={(e) => setTabDescription(e.target.value)} maxLength={120} />
           </Field>
           <div className="md:col-span-2">
             <Field label="Timeline title">
               <input className={inputClass} value={timelineTitle} onChange={(e) => setTimelineTitle(e.target.value)} required maxLength={200} />
             </Field>
+          </div>
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <Field label="Project notes (optional)">
+              <textarea
+                className={`${inputClass} h-auto min-h-28 resize-y py-2 leading-relaxed`}
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                maxLength={2000}
+                rows={4}
+                aria-describedby={`notes-hint-${project.slug}`}
+                placeholder="Context, decisions, dependencies…"
+              />
+            </Field>
+            <p id={`notes-hint-${project.slug}`} className="flex justify-between gap-4 text-xs text-muted-foreground">
+              <span>Shown on the timeline and in the executive summary.</span>
+              <span>{notes.length}/2000</span>
+            </p>
           </div>
         </div>
       </section>

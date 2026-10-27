@@ -9,7 +9,7 @@ const ROW_HEIGHT = 32
 const TOP_PAD = 22
 const FINAL_AREA = 52
 
-const laneSwatch = ['bg-lane-1', 'bg-lane-2', 'bg-lane-3']
+const laneSwatch = ['bg-lane-1', 'bg-lane-2', 'bg-lane-3', 'bg-lane-4', 'bg-lane-5']
 const swatchFor = (index: number) => laneSwatch[index % laneSwatch.length]
 
 function dotClass(status: MilestoneStatus) {
@@ -179,6 +179,11 @@ function LaneLabel({ lane }: { lane: Lane }) {
         {lane.project.tabLabel}
       </span>
       <span className="text-xs leading-relaxed text-muted-foreground">{lane.project.tabDescription}</span>
+      {lane.project.notes ? (
+        <span className="line-clamp-2 text-xs italic leading-relaxed text-muted-foreground" title={lane.project.notes}>
+          {lane.project.notes}
+        </span>
+      ) : null}
     </div>
   )
 }
