@@ -29,6 +29,7 @@ export function ProjectEditor({ project }: { project: Project }) {
   const [tabDescription, setTabDescription] = useState(project.tabDescription)
   const [timelineTitle, setTimelineTitle] = useState(project.timelineTitle)
   const [notes, setNotes] = useState(project.notes ?? '')
+  const [executiveNote, setExecutiveNote] = useState(project.executiveNote ?? '')
   const [milestones, setMilestones] = useState<DraftMilestone[]>(() =>
     project.milestones.map((m) => ({
       key: nextKey(),
@@ -132,6 +133,7 @@ export function ProjectEditor({ project }: { project: Project }) {
       milestones: milestones.map(({ title, date, status, dateSlipped }) => ({ title, date, status, dateSlipped })),
       finalMilestone: hasFinal ? { title: finalTitle, date: finalDate } : null,
       notes,
+      executiveNote,
     }
     startTransition(async () => {
       const result = await saveProject(project.slug, input)
@@ -192,6 +194,23 @@ export function ProjectEditor({ project }: { project: Project }) {
             <Field label="Timeline title">
               <input className={inputClass} value={timelineTitle} onChange={(e) => setTimelineTitle(e.target.value)} required maxLength={200} />
             </Field>
+          </div>
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <Field label="Executive note (optional)">
+              <textarea
+                className={`${inputClass} h-auto min-h-16 resize-y py-2 leading-relaxed`}
+                value={executiveNote}
+                onChange={(e) => setExecutiveNote(e.target.value)}
+                maxLength={300}
+                rows={2}
+                aria-describedby={`exec-note-hint-${project.slug}`}
+                placeholder="One-line status for leadership…"
+              />
+            </Field>
+            <p id={`exec-note-hint-${project.slug}`} className="flex justify-between gap-4 text-xs text-muted-foreground">
+              <span>Shown in the Portfolio overview of the executive summary.</span>
+              <span>{executiveNote.length}/300</span>
+            </p>
           </div>
           <div className="flex flex-col gap-1.5 md:col-span-2">
             <Field label="Project notes (optional)">

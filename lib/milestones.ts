@@ -27,4 +27,5 @@ export type Project = {
   milestones: Milestone[]
   finalMilestone?: { id: number; title: string; date: string }
   notes?: string
+  executiveNote?: string
 }
