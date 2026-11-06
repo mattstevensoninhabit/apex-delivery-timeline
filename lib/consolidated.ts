@@ -1,5 +1,5 @@
 import { parseIsoDate } from './dates'
-import type { Milestone, Project } from './milestones'
+import { isOpenMilestone, type Milestone, type Project } from './milestones'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 const PAD_DAYS = 7
@@ -122,7 +122,7 @@ export function buildConsolidatedTimeline(projects: Project[], now = new Date())
       ? { ...project.finalMilestone, position: finalTime !== undefined ? toPosition(finalTime) : undefined }
       : undefined
 
-    const pending = project.milestones.filter((m) => m.status !== 'delivered')
+    const pending = project.milestones.filter((m) => isOpenMilestone(m.status))
     const upcoming = pending
       .map((m) => ({ m, t: timeOf(m.date) }))
       .filter((e): e is { m: Milestone; t: number } => e.t !== undefined && e.t >= today)

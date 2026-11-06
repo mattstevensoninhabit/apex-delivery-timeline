@@ -19,6 +19,7 @@ function dotClass(status: MilestoneStatus) {
     status === 'at-risk' && 'border-warning bg-warning text-foreground',
     status === 'in-progress' && 'border-primary bg-background text-foreground',
     status === 'not-started' && 'border-border bg-background text-muted-foreground',
+    status === 'deferred' && 'border-dashed border-muted-foreground bg-muted text-muted-foreground',
   )
 }
 
@@ -154,6 +155,7 @@ function UnscheduledCell({ lane }: { lane: Lane }) {
               item.status === 'at-risk' && 'border-warning bg-warning',
               item.status === 'in-progress' && 'border-primary bg-background',
               item.status === 'not-started' && 'border-border bg-background',
+              item.status === 'deferred' && 'border-dashed border-muted-foreground bg-muted',
               !item.status && 'border-foreground bg-foreground',
             )}
           />

@@ -18,7 +18,7 @@ export type ProjectInput = {
 
 const MAX_NOTES = 2000
 
-const VALID_STATUSES = new Set<string>(['delivered', 'at-risk', 'in-progress', 'not-started'] satisfies MilestoneStatus[])
+const VALID_STATUSES = new Set<string>(['delivered', 'at-risk', 'in-progress', 'not-started', 'deferred'] satisfies MilestoneStatus[])
 const MAX_MILESTONES = 50
 
 function clean(value: unknown, max = 200) {
