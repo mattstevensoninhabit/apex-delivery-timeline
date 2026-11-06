@@ -47,9 +47,11 @@ export type ProjectInput = {
   milestones: { title: string; date: string; status: MilestoneStatus; dateSlipped: boolean }[]
   finalMilestone: { title: string; date: string } | null
   notes: string
+  executiveNote: string
 }
 
 const MAX_NOTES = 2000
+const MAX_EXECUTIVE_NOTE = 300
 
 const VALID_STATUSES = new Set<string>(['delivered', 'at-risk', 'in-progress', 'not-started', 'deferred'] satisfies MilestoneStatus[])
 const MAX_MILESTONES = 50
@@ -134,6 +136,7 @@ export async function saveProject(
       milestones,
       finalMilestone,
       notes: clean(input.notes, MAX_NOTES),
+      executiveNote: clean(input.executiveNote, MAX_EXECUTIVE_NOTE),
       updatedAt: sql`now()`,
     })
     .where(eq(projects.slug, slug))

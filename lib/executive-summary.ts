@@ -507,15 +507,16 @@ class SummaryWriter {
   }
 
   overviewTable(projects: Project[], today: number) {
-    const cols = [PAGE_MARGIN + 8, PAGE_MARGIN + 160, PAGE_MARGIN + 250, PAGE_MARGIN + 350]
+    const cols = [PAGE_MARGIN + 8, PAGE_MARGIN + 112, PAGE_MARGIN + 170, PAGE_MARGIN + 254, PAGE_MARGIN + 390]
+    const colEnd = (i: number) => (i + 1 < cols.length ? cols[i + 1] : this.width - PAGE_MARGIN) - 10
     this.ensure(40)
     this.color(NAVY, 'fill')
     this.pdf.rect(PAGE_MARGIN, this.y, this.contentWidth, 20, 'F')
     this.pdf.setFont('helvetica', 'bold')
-    this.pdf.setFontSize(7.5)
+    this.pdf.setFontSize(7)
     this.pdf.setTextColor(255, 255, 255)
-    ;['PROJECT', 'PROGRESS', 'HEALTH', 'NEXT MILESTONE'].forEach((label, i) =>
-      this.pdf.text(label, cols[i], this.y + 13, { charSpace: 0.8 }),
+    ;['PROJECT', 'PROGRESS', 'HEALTH', 'EXECUTIVE NOTE', 'NEXT MILESTONE'].forEach((label, i) =>
+      this.pdf.text(label, cols[i], this.y + 13, { charSpace: 0.6 }),
     )
     this.y += 20
 
@@ -525,10 +526,13 @@ class SummaryWriter {
       const health = overallHealth(project)
       const next = nextMilestone(project, today)
       const nextText = next ? `${next.title} (${dateText(next.date)})` : 'Not yet defined'
-      this.pdf.setFontSize(9.5)
-      const nextLines = this.pdf.splitTextToSize(nextText, this.width - PAGE_MARGIN - cols[3] - 8) as string[]
-      const nameLines = this.pdf.splitTextToSize(project.tabLabel, cols[1] - cols[0] - 10) as string[]
-      const rowHeight = Math.max(24, Math.max(nextLines.length, nameLines.length) * 12 + 12)
+      this.pdf.setFontSize(9)
+      this.pdf.setFont('helvetica', 'normal')
+      const noteLines = this.pdf.splitTextToSize(project.executiveNote || '-', colEnd(3) - cols[3]) as string[]
+      const nextLines = this.pdf.splitTextToSize(nextText, colEnd(4) - cols[4]) as string[]
+      this.pdf.setFont('helvetica', 'bold')
+      const nameLines = this.pdf.splitTextToSize(project.tabLabel, colEnd(0) - cols[0]) as string[]
+      const rowHeight = Math.max(24, Math.max(nextLines.length, nameLines.length, noteLines.length) * 11.5 + 12)
       this.ensure(rowHeight)
       if (i % 2 === 1) {
         this.color(ROW_TINT, 'fill')
@@ -546,8 +550,10 @@ class SummaryWriter {
       this.color(health.color, 'text')
       this.pdf.text(health.label, cols[2] + 11, textY)
       this.pdf.setFont('helvetica', 'normal')
+      this.color(project.executiveNote ? NAVY : MUTED, 'text')
+      this.pdf.text(noteLines, cols[3], textY, { lineHeightFactor: 1.28 })
       this.color(NAVY, 'text')
-      this.pdf.text(nextLines, cols[3], textY)
+      this.pdf.text(nextLines, cols[4], textY, { lineHeightFactor: 1.28 })
       this.y += rowHeight
     })
     this.color(RULE, 'draw')
