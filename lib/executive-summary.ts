@@ -1,7 +1,7 @@
 import type { jsPDF } from 'jspdf'
 import { buildConsolidatedTimeline } from './consolidated'
 import { formatMilestoneDate, parseIsoDate } from './dates'
-import { MILESTONE_STATUSES, type Milestone, type MilestoneStatus, type Project } from './milestones'
+import { MILESTONE_STATUSES, isOpenMilestone, type Milestone, type MilestoneStatus, type Project } from './milestones'
 
 type Rgb = [number, number, number]
 
@@ -13,6 +13,7 @@ const MUTED: Rgb = [95, 108, 125]
 const RULE: Rgb = [214, 224, 234]
 const ROW_TINT: Rgb = [242, 247, 251]
 const TODAY_RED: Rgb = [214, 48, 49]
+const DEFERRED_GRAY: Rgb = [176, 186, 198]
 
 const TIMELINE_ROW = 22
 
@@ -29,6 +30,7 @@ const STATUS_COLOR: Record<MilestoneStatus, Rgb> = {
   'in-progress': BLUE,
   'at-risk': AMBER,
   'not-started': MUTED,
+  deferred: DEFERRED_GRAY,
 }
 
 function dateText(value: string) {
@@ -37,7 +39,7 @@ function dateText(value: string) {
 }
 
 function nextMilestone(project: Project, today: number): Milestone | undefined {
-  const pending = project.milestones.filter((m) => m.status !== 'delivered')
+  const pending = project.milestones.filter((m) => isOpenMilestone(m.status))
   const upcoming = pending
     .map((m) => ({ m, t: parseIsoDate(m.date)?.getTime() }))
     .filter((e): e is { m: Milestone; t: number } => e.t !== undefined && e.t >= today)
@@ -47,7 +49,7 @@ function nextMilestone(project: Project, today: number): Milestone | undefined {
 
 function overallHealth(project: Project): { label: string; color: Rgb } {
   if (project.milestones.length === 0) return { label: 'Not yet planned', color: MUTED }
-  if (project.milestones.some((m) => m.status === 'at-risk' || (m.dateSlipped && m.status !== 'delivered'))) {
+  if (project.milestones.some((m) => m.status === 'at-risk' || (m.dateSlipped && isOpenMilestone(m.status)))) {
     return { label: 'Needs attention', color: AMBER }
   }
   return { label: 'On track', color: GREEN }
@@ -407,7 +409,7 @@ class SummaryWriter {
   }
 
   private drawDot(x: number, y: number, milestone: Milestone, fill: Rgb) {
-    if (milestone.dateSlipped && milestone.status !== 'delivered') {
+    if (milestone.dateSlipped && isOpenMilestone(milestone.status)) {
       this.color(AMBER, 'draw')
       this.pdf.setLineWidth(1.5)
       this.pdf.circle(x, y, 9.5, 'S')
@@ -433,7 +435,7 @@ class SummaryWriter {
 
   private drawLegend(showToday: boolean) {
     const items: { label: string; draw: (x: number, y: number) => void }[] = [
-      ...(['delivered', 'in-progress', 'not-started', 'at-risk'] as MilestoneStatus[]).map((status) => ({
+      ...(['delivered', 'in-progress', 'not-started', 'at-risk', 'deferred'] as MilestoneStatus[]).map((status) => ({
         label: status === 'delivered' ? 'Complete' : status === 'not-started' ? 'Planned' : STATUS_LABEL[status],
         draw: (x: number, y: number) => {
           this.color(STATUS_COLOR[status], 'fill')
@@ -611,7 +613,7 @@ function writeProject(
   writer.bulletList(
     'Risks & slipped dates',
     project.milestones
-      .filter((m) => m.status !== 'delivered' && (m.status === 'at-risk' || m.dateSlipped))
+      .filter((m) => isOpenMilestone(m.status) && (m.status === 'at-risk' || m.dateSlipped))
       .map(
         (m) =>
           `Milestone ${m.id}: ${m.title} - ${m.status === 'at-risk' ? 'at risk' : 'date moved'} (${dateText(m.date)})`,

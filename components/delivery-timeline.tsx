@@ -10,6 +10,7 @@ export const statusLabel: Record<MilestoneStatus, string> = {
   'at-risk': 'At risk',
   'in-progress': 'In progress',
   'not-started': 'Planned',
+  deferred: 'Deferred',
 }
 
 function StatusDot({ status, className }: { status: MilestoneStatus; className?: string }) {
@@ -22,6 +23,7 @@ function StatusDot({ status, className }: { status: MilestoneStatus; className?:
         status === 'at-risk' && 'border-warning bg-warning',
         status === 'in-progress' && 'border-primary bg-background',
         status === 'not-started' && 'border-border bg-background',
+        status === 'deferred' && 'border-dashed border-muted-foreground bg-muted',
         className,
       )}
     />
@@ -38,7 +40,7 @@ function TodayMarker() {
 }
 
 function MilestoneLabel({ milestone }: { milestone: Milestone }) {
-  const muted = milestone.status === 'not-started'
+  const muted = milestone.status === 'not-started' || milestone.status === 'deferred'
   return (
     <div className="flex flex-col items-center gap-1 text-center">
       <span
@@ -151,7 +153,9 @@ function VerticalTimeline({ project }: { project: Project }) {
                 <span
                   className={cn(
                     'text-xs font-bold uppercase tracking-wide',
-                    milestone.status === 'not-started' ? 'text-muted-foreground' : 'text-primary',
+                    milestone.status === 'not-started' || milestone.status === 'deferred'
+                      ? 'text-muted-foreground'
+                      : 'text-primary',
                   )}
                 >
                   Milestone {milestone.id}
@@ -202,6 +206,7 @@ export function Legend() {
     { label: 'Complete', node: <StatusDot status="delivered" /> },
     { label: 'In progress', node: <StatusDot status="in-progress" /> },
     { label: 'Planned', node: <StatusDot status="not-started" /> },
+    { label: 'Deferred', node: <StatusDot status="deferred" /> },
     { label: 'Today', node: <TodayMarker /> },
   ]
   return (

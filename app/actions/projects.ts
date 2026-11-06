@@ -1,10 +1,43 @@
 'use server'
 
-import { eq, sql } from 'drizzle-orm'
+import { desc, eq, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
-import { projects } from '@/lib/db/schema'
+import { projectSnapshots, projects } from '@/lib/db/schema'
+import type { ProjectSnapshot } from '@/lib/change-notes'
 import type { Milestone, MilestoneStatus } from '@/lib/milestones'
+
+const WEEK_MS = 7 * 24 * 60 * 60 * 1000
+
+export async function getChangeBaseline(
+  slug: string,
+): Promise<{ ok: true; snapshot: ProjectSnapshot } | { ok: false; error: string }> {
+  if (typeof slug !== 'string' || !slug) return { ok: false, error: 'Project not found.' }
+
+  const rows = await db
+    .select()
+    .from(projectSnapshots)
+    .where(eq(projectSnapshots.projectSlug, slug))
+    .orderBy(desc(projectSnapshots.createdAt))
+    .limit(200)
+
+  if (rows.length === 0) {
+    return { ok: false, error: 'No earlier version yet. Save an update, then generate notes after your next update.' }
+  }
+
+  const cutoff = Date.now() - WEEK_MS
+  const baseline = rows.find((row) => row.createdAt.getTime() <= cutoff) ?? rows[rows.length - 1]
+
+  return {
+    ok: true,
+    snapshot: {
+      createdAt: baseline.createdAt.toISOString(),
+      todayMilestoneId: baseline.todayMilestoneId,
+      milestones: baseline.milestones,
+      finalMilestone: baseline.finalMilestone ?? null,
+    },
+  }
+}
 
 export type ProjectInput = {
   tabLabel: string
@@ -18,7 +51,7 @@ export type ProjectInput = {
 
 const MAX_NOTES = 2000
 
-const VALID_STATUSES = new Set<string>(['delivered', 'at-risk', 'in-progress', 'not-started'] satisfies MilestoneStatus[])
+const VALID_STATUSES = new Set<string>(['delivered', 'at-risk', 'in-progress', 'not-started', 'deferred'] satisfies MilestoneStatus[])
 const MAX_MILESTONES = 50
 
 function clean(value: unknown, max = 200) {
@@ -63,6 +96,33 @@ export async function saveProject(
     input.todayIndex < milestones.length
       ? input.todayIndex
       : null
+
+  const [previous] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1)
+  if (!previous) return { ok: false, error: 'Project not found.' }
+
+  const timelineKey = (
+    today: number | null,
+    list: Milestone[],
+    final: { title: string; date: string } | null,
+  ) =>
+    JSON.stringify([
+      today,
+      list.map((m) => [m.title, m.date, m.status, Boolean(m.dateSlipped)]),
+      final ? [final.title, final.date] : null,
+    ])
+
+  if (
+    timelineKey(previous.todayMilestoneId, previous.milestones, previous.finalMilestone ?? null) !==
+    timelineKey(todayIndex, milestones, finalMilestone)
+  ) {
+    await db.insert(projectSnapshots).values({
+      projectSlug: slug,
+      tabLabel: previous.tabLabel,
+      todayMilestoneId: previous.todayMilestoneId,
+      milestones: previous.milestones,
+      finalMilestone: previous.finalMilestone,
+    })
+  }
 
   const result = await db
     .update(projects)
