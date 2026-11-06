@@ -515,7 +515,7 @@ class SummaryWriter {
     this.pdf.setFont('helvetica', 'bold')
     this.pdf.setFontSize(7)
     this.pdf.setTextColor(255, 255, 255)
-    ;['PROJECT', 'PROGRESS', 'HEALTH', 'NEXT MILESTONE', 'EXECUTIVE NOTE'].forEach((label, i) =>
+    ;['PROJECT', 'PROGRESS', 'HEALTH', 'EXECUTIVE NOTE', 'NEXT MILESTONE'].forEach((label, i) =>
       this.pdf.text(label, cols[i], this.y + 13, { charSpace: 0.6 }),
     )
     this.y += 20
@@ -528,8 +528,8 @@ class SummaryWriter {
       const nextText = next ? `${next.title} (${dateText(next.date)})` : 'Not yet defined'
       this.pdf.setFontSize(9)
       this.pdf.setFont('helvetica', 'normal')
-      const nextLines = this.pdf.splitTextToSize(nextText, colEnd(3) - cols[3]) as string[]
-      const noteLines = this.pdf.splitTextToSize(project.executiveNote || '-', colEnd(4) - cols[4]) as string[]
+      const noteLines = this.pdf.splitTextToSize(project.executiveNote || '-', colEnd(3) - cols[3]) as string[]
+      const nextLines = this.pdf.splitTextToSize(nextText, colEnd(4) - cols[4]) as string[]
       this.pdf.setFont('helvetica', 'bold')
       const nameLines = this.pdf.splitTextToSize(project.tabLabel, colEnd(0) - cols[0]) as string[]
       const rowHeight = Math.max(24, Math.max(nextLines.length, nameLines.length, noteLines.length) * 11.5 + 12)
@@ -550,10 +550,10 @@ class SummaryWriter {
       this.color(health.color, 'text')
       this.pdf.text(health.label, cols[2] + 11, textY)
       this.pdf.setFont('helvetica', 'normal')
-      this.color(NAVY, 'text')
-      this.pdf.text(nextLines, cols[3], textY, { lineHeightFactor: 1.28 })
       this.color(project.executiveNote ? NAVY : MUTED, 'text')
-      this.pdf.text(noteLines, cols[4], textY, { lineHeightFactor: 1.28 })
+      this.pdf.text(noteLines, cols[3], textY, { lineHeightFactor: 1.28 })
+      this.color(NAVY, 'text')
+      this.pdf.text(nextLines, cols[4], textY, { lineHeightFactor: 1.28 })
       this.y += rowHeight
     })
     this.color(RULE, 'draw')
