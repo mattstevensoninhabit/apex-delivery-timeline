@@ -2,9 +2,10 @@
 
 import { useRef, useState, useTransition, type ChangeEvent, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowDown, ArrowUp, Download, Plus, Trash2, Upload } from 'lucide-react'
+import { ArrowDown, ArrowUp, Download, ListChecks, Plus, Trash2, Upload } from 'lucide-react'
 import { importTimelineCsv } from '@/lib/csv-import'
-import { saveProject, type ProjectInput } from '@/app/actions/projects'
+import { describeChanges } from '@/lib/change-notes'
+import { getChangeBaseline, saveProject, type ProjectInput } from '@/app/actions/projects'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { DatePicker } from '@/components/admin/date-picker'
 import { MILESTONE_STATUSES, type MilestoneStatus, type Project } from '@/lib/milestones'
@@ -20,6 +21,7 @@ const nextKey = () => `m-${keySeed++}`
 export function ProjectEditor({ project }: { project: Project }) {
   const router = useRouter()
   const [pending, startTransition] = useTransition()
+  const [generating, startGenerating] = useTransition()
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [message, setMessage] = useState<{ type: 'ok' | 'error'; text: string } | null>(null)
 
@@ -96,6 +98,25 @@ export function ProjectEditor({ project }: { project: Project }) {
     setMessage({
       type: 'ok',
       text: `Imported ${imported.length} milestone${imported.length === 1 ? '' : 's'} from ${file.name}. Review, then save changes.`,
+    })
+  }
+
+  function handleGenerateNotes() {
+    setMessage(null)
+    const todayIndex = milestones.findIndex((m) => m.key === todayKey)
+    startGenerating(async () => {
+      const result = await getChangeBaseline(project.slug)
+      if (!result.ok) {
+        setMessage({ type: 'error', text: result.error })
+        return
+      }
+      const summary = describeChanges(result.snapshot, {
+        todayIndex: todayIndex >= 0 ? todayIndex : null,
+        milestones: milestones.map(({ title, date, status, dateSlipped }) => ({ title, date, status, dateSlipped })),
+        finalMilestone: hasFinal ? { title: finalTitle, date: finalDate } : null,
+      })
+      setNotes((current) => (current.trim() ? `${summary}\n\n${current}` : summary).slice(0, 2000))
+      setMessage({ type: 'ok', text: 'Change notes added to Project notes. Review, then save changes.' })
     })
   }
 
@@ -184,10 +205,16 @@ export function ProjectEditor({ project }: { project: Project }) {
                 placeholder="Context, decisions, dependencies…"
               />
             </Field>
-            <p id={`notes-hint-${project.slug}`} className="flex justify-between gap-4 text-xs text-muted-foreground">
-              <span>Shown on the timeline and in the executive summary.</span>
-              <span>{notes.length}/2000</span>
-            </p>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p id={`notes-hint-${project.slug}`} className="flex flex-1 justify-between gap-4 text-xs text-muted-foreground">
+                <span>Shown on the timeline and in the executive summary.</span>
+                <span>{notes.length}/2000</span>
+              </p>
+              <Button type="button" variant="outline" size="sm" onClick={handleGenerateNotes} disabled={generating}>
+                <ListChecks aria-hidden="true" />
+                {generating ? 'Generating…' : 'Generate update notes'}
+              </Button>
+            </div>
           </div>
         </div>
       </section>
