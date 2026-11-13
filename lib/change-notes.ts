@@ -39,10 +39,10 @@ export function describeChanges(baseline: ProjectSnapshot, draft: DraftState): s
     }
     if (prev.status !== m.status) {
       if (m.status === 'delivered') completed.push(m.title)
-      else statusChanges.push(`${m.title}: ${statusLabel(prev.status)} → ${statusLabel(m.status)}`)
+      else statusChanges.push(`${m.title}: ${statusLabel(prev.status)} -> ${statusLabel(m.status)}`)
     }
     if (prev.date !== m.date) {
-      dateChanges.push(`${m.title}: ${prev.date} → ${m.date}${m.dateSlipped ? ' (slipped)' : ''}`)
+      dateChanges.push(`${m.title}: ${prev.date} -> ${m.date}${m.dateSlipped ? ' (slipped)' : ''}`)
     } else if (m.dateSlipped && !prev.dateSlipped) {
       dateChanges.push(`${m.title}: flagged as slipped`)
     }
@@ -69,7 +69,7 @@ export function describeChanges(baseline: ProjectSnapshot, draft: DraftState): s
   if (prevFinal?.date !== nextFinal?.date || prevFinal?.title !== nextFinal?.title) {
     if (!nextFinal) lines.push(`Final delivery: ${prevFinal?.title} removed`)
     else if (!prevFinal) lines.push(`Final delivery: ${nextFinal.title} set for ${nextFinal.date}`)
-    else lines.push(`Final delivery: ${prevFinal.date} → ${nextFinal.date}`)
+    else lines.push(`Final delivery: ${prevFinal.date} -> ${nextFinal.date}`)
   }
 
   const prevToday = baseline.milestones.find((m) => m.id === baseline.todayMilestoneId)?.title

@@ -33,6 +33,25 @@ const STATUS_COLOR: Record<MilestoneStatus, Rgb> = {
   deferred: DEFERRED_GRAY,
 }
 
+// jsPDF's built-in Helvetica only encodes WinAnsi; anything outside it garbles the whole line.
+const PDF_REPLACEMENTS: [RegExp, string][] = [
+  [/[\u2192\u27A1\u21D2]/g, '->'],
+  [/[\u2190\u21D0]/g, '<-'],
+  [/[\u2018\u2019\u201B\u2032]/g, "'"],
+  [/[\u201C\u201D\u201F\u2033]/g, '"'],
+  [/[\u2013\u2014\u2212]/g, '-'],
+  [/\u2026/g, '...'],
+  [/[\u2022\u25CF\u25AA]/g, '-'],
+  [/[\u00A0\u2007\u202F]/g, ' '],
+  [/\t/g, '  '],
+]
+
+function toPdfText(value: string) {
+  let text = value.normalize('NFC')
+  for (const [pattern, replacement] of PDF_REPLACEMENTS) text = text.replace(pattern, replacement)
+  return text.replace(/[^\n\x20-\x7E\u00A1-\u00FF]/g, '')
+}
+
 function dateText(value: string) {
   const formatted = formatMilestoneDate(value)
   return formatted || 'TBC'
@@ -251,7 +270,7 @@ class SummaryWriter {
     this.pdf.setFontSize(9.5)
     rows.forEach((row, i) => {
       this.pdf.setFont('helvetica', 'normal')
-      const lines = this.pdf.splitTextToSize(row.title, titleWidth) as string[]
+      const lines = this.pdf.splitTextToSize(toPdfText(row.title), titleWidth) as string[]
       const rowHeight = Math.max(22, lines.length * 12 + 10)
       if (this.y + rowHeight > this.height - FOOTER_SPACE) {
         this.pdf.addPage()
@@ -484,7 +503,7 @@ class SummaryWriter {
     this.pdf.setFont('helvetica', 'italic')
     this.pdf.setFontSize(10)
     this.color(MUTED, 'text')
-    this.pdf.text(this.pdf.splitTextToSize(text, this.contentWidth) as string[], PAGE_MARGIN, this.y)
+    this.pdf.text(this.pdf.splitTextToSize(toPdfText(text), this.contentWidth) as string[], PAGE_MARGIN, this.y)
     this.y += 30
   }
 
@@ -498,7 +517,7 @@ class SummaryWriter {
     this.pdf.setFont('helvetica', 'normal')
     this.pdf.setFontSize(10)
     this.color(MUTED, 'text')
-    const lines = this.pdf.splitTextToSize(text, this.contentWidth) as string[]
+    const lines = this.pdf.splitTextToSize(toPdfText(text), this.contentWidth) as string[]
     for (const line of lines) {
       this.ensure(14)
       this.pdf.text(line, PAGE_MARGIN, this.y)
@@ -529,8 +548,8 @@ class SummaryWriter {
       const nextText = next ? `${next.title} (${dateText(next.date)})` : 'Not yet defined'
       this.pdf.setFontSize(9)
       this.pdf.setFont('helvetica', 'normal')
-      const noteLines = this.pdf.splitTextToSize(project.executiveNote || '-', colEnd(3) - cols[3]) as string[]
-      const nextLines = this.pdf.splitTextToSize(nextText, colEnd(4) - cols[4]) as string[]
+      const noteLines = this.pdf.splitTextToSize(toPdfText(project.executiveNote || '-'), colEnd(3) - cols[3]) as string[]
+      const nextLines = this.pdf.splitTextToSize(toPdfText(nextText), colEnd(4) - cols[4]) as string[]
       this.pdf.setFont('helvetica', 'bold')
       const nameLines = this.pdf.splitTextToSize(project.tabLabel, colEnd(0) - cols[0]) as string[]
       const rowHeight = Math.max(24, Math.max(nextLines.length, nameLines.length, noteLines.length) * 11.5 + 12)
