@@ -1,4 +1,4 @@
-import { integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import type { Milestone, Project } from '@/lib/milestones'
 
 export const projects = pgTable('projects', {
@@ -12,6 +12,7 @@ export const projects = pgTable('projects', {
   finalMilestone: jsonb('final_milestone').$type<NonNullable<Project['finalMilestone']>>(),
   notes: text('notes').notNull().default(''),
   executiveNote: text('executive_note').notNull().default(''),
+  milestonesDefining: boolean('milestones_defining').notNull().default(false),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

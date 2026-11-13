@@ -48,6 +48,7 @@ function nextMilestone(project: Project, today: number): Milestone | undefined {
 }
 
 function overallHealth(project: Project): { label: string; color: Rgb } {
+  if (project.milestonesDefining) return { label: 'Being defined', color: BLUE }
   if (project.milestones.length === 0) return { label: 'Not yet planned', color: MUTED }
   if (project.milestones.some((m) => m.status === 'at-risk' || (m.dateSlipped && isOpenMilestone(m.status)))) {
     return { label: 'Needs attention', color: AMBER }

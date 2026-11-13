@@ -30,6 +30,7 @@ export function ProjectEditor({ project }: { project: Project }) {
   const [timelineTitle, setTimelineTitle] = useState(project.timelineTitle)
   const [notes, setNotes] = useState(project.notes ?? '')
   const [executiveNote, setExecutiveNote] = useState(project.executiveNote ?? '')
+  const [milestonesDefining, setMilestonesDefining] = useState(Boolean(project.milestonesDefining))
   const [milestones, setMilestones] = useState<DraftMilestone[]>(() =>
     project.milestones.map((m) => ({
       key: nextKey(),
@@ -134,6 +135,7 @@ export function ProjectEditor({ project }: { project: Project }) {
       finalMilestone: hasFinal ? { title: finalTitle, date: finalDate } : null,
       notes,
       executiveNote,
+      milestonesDefining,
     }
     startTransition(async () => {
       const result = await saveProject(project.slug, input)
@@ -194,6 +196,21 @@ export function ProjectEditor({ project }: { project: Project }) {
             <Field label="Timeline title">
               <input className={inputClass} value={timelineTitle} onChange={(e) => setTimelineTitle(e.target.value)} required maxLength={200} />
             </Field>
+          </div>
+          <div className="flex flex-col gap-1 md:col-span-2">
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <input
+                type="checkbox"
+                className="size-4 accent-primary"
+                checked={milestonesDefining}
+                onChange={(e) => setMilestonesDefining(e.target.checked)}
+                aria-describedby={`defining-hint-${project.slug}`}
+              />
+              Milestones still being defined
+            </label>
+            <p id={`defining-hint-${project.slug}`} className="pl-6 text-xs text-muted-foreground">
+              {"Shows 'Being defined' as health in the executive summary instead of the automatic status."}
+            </p>
           </div>
           <div className="flex flex-col gap-1.5 md:col-span-2">
             <Field label="Executive note (optional)">
