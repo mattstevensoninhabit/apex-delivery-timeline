@@ -28,4 +28,5 @@ export type Project = {
   finalMilestone?: { id: number; title: string; date: string }
   notes?: string
   executiveNote?: string
+  milestonesDefining?: boolean
 }

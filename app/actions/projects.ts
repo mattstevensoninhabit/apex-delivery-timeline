@@ -48,6 +48,7 @@ export type ProjectInput = {
   finalMilestone: { title: string; date: string } | null
   notes: string
   executiveNote: string
+  milestonesDefining: boolean
 }
 
 const MAX_NOTES = 2000
@@ -137,6 +138,7 @@ export async function saveProject(
       finalMilestone,
       notes: clean(input.notes, MAX_NOTES),
       executiveNote: clean(input.executiveNote, MAX_EXECUTIVE_NOTE),
+      milestonesDefining: input.milestonesDefining === true,
       updatedAt: sql`now()`,
     })
     .where(eq(projects.slug, slug))

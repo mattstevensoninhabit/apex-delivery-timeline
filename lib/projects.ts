@@ -17,6 +17,7 @@ function toProject(row: ProjectRow): Project {
     finalMilestone: row.finalMilestone ?? undefined,
     notes: row.notes || undefined,
     executiveNote: row.executiveNote || undefined,
+  milestonesDefining: row.milestonesDefining,
   }
 }
 
