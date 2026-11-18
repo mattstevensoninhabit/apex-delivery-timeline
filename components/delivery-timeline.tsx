@@ -1,6 +1,7 @@
 import { formatMilestoneDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import { TimelineExport } from '@/components/timeline-export'
+import type { PdfBranding } from '@/lib/branding'
 import type { Milestone, MilestoneStatus, Project } from '@/lib/milestones'
 
 type FinalMilestone = NonNullable<Project['finalMilestone']>
@@ -235,7 +236,7 @@ function EmptyTimeline() {
   )
 }
 
-export function DeliveryTimeline({ project }: { project: Project }) {
+export function DeliveryTimeline({ project, branding }: { project: Project; branding?: PdfBranding }) {
   const titleId = `timeline-title-${project.slug}`
   const exportId = `timeline-export-${project.slug}`
   const hasMilestones = project.milestones.length > 0
@@ -263,6 +264,7 @@ export function DeliveryTimeline({ project }: { project: Project }) {
             targetId={exportId}
             fileName={`${project.slug}-delivery-timeline`}
             projects={[project]}
+            branding={branding}
           />
         )}
       </div>

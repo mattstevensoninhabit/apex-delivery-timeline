@@ -6,8 +6,8 @@ import './globals.css'
 const montserrat = Montserrat({ subsets: ['latin'], variable: '--font-montserrat' })
 
 export const metadata: Metadata = {
-  title: 'AI Pod — Delivery Timelines',
-  description: 'AI Pod delivery timelines for AI Lead Qualification, Agentic AI Resident, and AI Call Scoring.',
+  title: 'Delivery Timelines',
+  description: 'Delivery timelines for every pod and project.',
   generator: 'v0.app',
 }
 

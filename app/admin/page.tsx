@@ -1,6 +1,7 @@
 import type { Metadata } from 'next'
 import Link from 'next/link'
 import { AdminWorkspace } from '@/components/admin/admin-workspace'
+import { getBrands } from '@/lib/brands'
 import { getProjects } from '@/lib/projects'
 
 export const dynamic = 'force-dynamic'
@@ -11,7 +12,7 @@ export const metadata: Metadata = {
 }
 
 export default async function AdminPage() {
-  const projects = await getProjects()
+  const [brands, projects] = await Promise.all([getBrands(), getProjects()])
 
   return (
     <main className="mx-auto flex min-h-screen max-w-screen-xl flex-col gap-8 px-4 py-10 md:px-8">
@@ -27,7 +28,7 @@ export default async function AdminPage() {
           View timelines
         </Link>
       </header>
-      <AdminWorkspace projects={projects} />
+      <AdminWorkspace brands={brands} projects={projects} />
     </main>
   )
 }

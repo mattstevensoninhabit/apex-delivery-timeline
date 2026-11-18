@@ -1,9 +1,46 @@
-import { boolean, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
+import { boolean, customType, integer, jsonb, pgTable, serial, text, timestamp } from 'drizzle-orm/pg-core'
 import type { Milestone, Project } from '@/lib/milestones'
+
+const bytea = customType<{ data: Buffer; driverData: Buffer }>({
+  dataType: () => 'bytea',
+})
+
+export const logos = pgTable('logos', {
+  id: serial('id').primaryKey(),
+  mimeType: text('mime_type').notNull(),
+  data: bytea('data').notNull(),
+  byteSize: integer('byte_size').notNull(),
+  sha256: text('sha256').notNull(),
+  createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
+})
+
+export const brands = pgTable('brands', {
+  slug: text('slug').primaryKey(),
+  position: integer('position').notNull().default(0),
+  isDefault: boolean('is_default').notNull().default(false),
+  name: text('name').notNull(),
+  headerLead: text('header_lead').notNull().default(''),
+  headerAccent: text('header_accent').notNull().default(''),
+  logoId: integer('logo_id').references(() => logos.id, { onDelete: 'set null' }),
+  logoAlt: text('logo_alt').notNull().default(''),
+  colorBackground: text('color_background').notNull().default('#071a33'),
+  colorSurface: text('color_surface').notNull().default('#1a3f6b'),
+  colorAccent: text('color_accent').notNull().default('#87cf36'),
+  colorTimelineAccent: text('color_timeline_accent').notNull().default('#0e6b9a'),
+  updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
+})
 
 export const projects = pgTable('projects', {
   slug: text('slug').primaryKey(),
   position: integer('position').notNull().default(0),
+  brandSlug: text('brand_slug')
+    .notNull()
+    .references(() => brands.slug),
+  logoId: integer('logo_id').references(() => logos.id, { onDelete: 'set null' }),
+  logoAlt: text('logo_alt'),
+  colorAccent: text('color_accent'),
+  colorTimelineAccent: text('color_timeline_accent'),
+  pageTitle: text('page_title'),
   tabLabel: text('tab_label').notNull(),
   tabDescription: text('tab_description').notNull().default(''),
   timelineTitle: text('timeline_title').notNull(),

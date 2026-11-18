@@ -71,7 +71,7 @@
   --foreground: #0b1f3a;
   --card: #f5f9fc;
   --card-foreground: #0b1f3a;
-  --primary: #0e6b9a;
+  --primary: var(--brand-timeline-accent, #0e6b9a);
   --primary-foreground: #ffffff;
   --muted-foreground: #556273;
   --border: #c8d6e3;

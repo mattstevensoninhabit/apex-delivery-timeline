@@ -1,9 +1,38 @@
 import type { jsPDF } from 'jspdf'
+import type { PdfBranding } from './branding'
 import { buildConsolidatedTimeline } from './consolidated'
 import { formatMilestoneDate, parseIsoDate } from './dates'
 import { MILESTONE_STATUSES, isOpenMilestone, type Milestone, type MilestoneStatus, type Project } from './milestones'
 
 type Rgb = [number, number, number]
+type LoadedLogo = { dataUrl: string; width: number; height: number }
+
+function hexToRgb(hex: string | undefined): Rgb | null {
+  if (!hex || !/^#[0-9a-f]{6}$/i.test(hex)) return null
+  return [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16)) as Rgb
+}
+
+async function loadLogo(url: string): Promise<LoadedLogo | null> {
+  try {
+    const image = new Image()
+    image.crossOrigin = 'anonymous'
+    image.src = url
+    await image.decode()
+    const scale = 4
+    const width = image.naturalWidth || 300
+    const height = image.naturalHeight || 80
+    const canvas = document.createElement('canvas')
+    canvas.width = width * scale
+    canvas.height = height * scale
+    const context = canvas.getContext('2d')
+    if (!context) return null
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    return { dataUrl: canvas.toDataURL('image/png'), width, height }
+  } catch (error) {
+    console.error('Could not load logo for PDF', error)
+    return null
+  }
+}
 
 const NAVY: Rgb = [7, 25, 48]
 const BLUE: Rgb = [11, 111, 164]
@@ -106,16 +135,27 @@ class SummaryWriter {
     }
   }
 
-  header(title: string, subtitle: string) {
-    this.color(NAVY, 'fill')
+  header(title: string, subtitle: string, branding?: PdfBranding, logo?: LoadedLogo | null) {
+    const fill = hexToRgb(branding?.background) ?? NAVY
+    const accent = hexToRgb(branding?.accent) ?? GREEN
+    this.color(fill, 'fill')
     this.pdf.rect(0, 0, this.width, 96, 'F')
-    this.color(GREEN, 'fill')
+    this.color(accent, 'fill')
     this.pdf.rect(0, 96, this.width, 4, 'F')
 
+    if (logo) {
+      const height = 28
+      const width = Math.min(160, (logo.width / logo.height) * height)
+      this.pdf.addImage(logo.dataUrl, 'PNG', this.width - PAGE_MARGIN - width, 24, width, (width / logo.width) * logo.height)
+    }
+
+    const eyebrow = branding
+      ? [branding.name, branding.lead].filter(Boolean).join('  |  ')
+      : 'Anyone Home  |  AI Pod'
     this.pdf.setFont('helvetica', 'bold')
     this.pdf.setFontSize(9)
-    this.color(GREEN, 'text')
-    this.pdf.text('ANYONE HOME  |  AI POD', PAGE_MARGIN, 38, { charSpace: 1.2 })
+    this.color(accent, 'text')
+    this.pdf.text(toPdfText(eyebrow.toUpperCase()), PAGE_MARGIN, 38, { charSpace: 1.2 })
 
     this.pdf.setFontSize(20)
     this.pdf.setTextColor(255, 255, 255)
@@ -656,8 +696,18 @@ function writeProject(
   writer.milestoneTable(project)
 }
 
-export async function downloadExecutiveSummary(projects: Project[], fileName: string, title?: string) {
-  const { jsPDF } = await import('jspdf')
+export async function downloadExecutiveSummary(
+  projects: Project[],
+  fileName: string,
+  options: { title?: string; branding?: PdfBranding } = {},
+) {
+  const { branding } = options
+  const singleTitle = projects.length === 1 ? projects[0].pageTitle : undefined
+  const title = options.title ?? (singleTitle ? `${singleTitle} Executive Summary` : undefined)
+  const [{ jsPDF }, logo] = await Promise.all([
+    import('jspdf'),
+    branding?.logoUrl ? loadLogo(branding.logoUrl) : Promise.resolve(null),
+  ])
   const pdf = new jsPDF({ unit: 'pt', format: 'letter', orientation: 'portrait' })
   const writer = new SummaryWriter(pdf)
   const now = new Date()
@@ -670,6 +720,8 @@ export async function downloadExecutiveSummary(projects: Project[], fileName: st
     isPortfolio
       ? `${projects.length} projects  |  Status as of ${generatedOn}`
       : `${projects[0].tabDescription}  |  Status as of ${generatedOn}`,
+    branding,
+    logo,
   )
 
   if (isPortfolio) {
