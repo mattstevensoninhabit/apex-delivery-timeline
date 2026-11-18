@@ -24,9 +24,9 @@ function ProjectRow({ brand, project, today }: { brand: Brand; project: Project;
     <li>
       <Link
         href={`/${brand.slug}?tab=${project.slug}`}
-        className="flex flex-col gap-3 rounded-lg px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:flex-row md:items-center md:gap-6"
+        className="flex flex-col gap-3 rounded-lg px-4 py-3 transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <div className="flex min-w-0 flex-1 items-center gap-3">
+        <div className="flex min-w-0 items-center gap-3">
           {project.logo ? (
             <img src={project.logo.url || '/placeholder.svg'} alt="" className="h-6 w-auto max-w-20 shrink-0" />
           ) : null}
@@ -37,7 +37,8 @@ function ProjectRow({ brand, project, today }: { brand: Brand; project: Project;
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-3 md:w-40">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="flex w-40 items-center gap-3">
           <div
             className="h-1.5 flex-1 overflow-hidden rounded-full bg-muted"
             role="progressbar"
@@ -54,17 +55,18 @@ function ProjectRow({ brand, project, today }: { brand: Brand; project: Project;
         </div>
         <span
           className={cn(
-            'self-start whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold md:self-center',
+            'whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold',
             TONE_CLASS[health.tone],
           )}
         >
           {health.label}
         </span>
-        <div className="flex flex-col text-sm md:w-56">
+        <div className="flex min-w-48 flex-1 flex-col text-sm">
           <span className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Next</span>
           <span className="truncate text-card-foreground">
             {next ? `${next.title}${next.date ? ` · ${formatMilestoneDate(next.date)}` : ''}` : 'All complete'}
           </span>
+        </div>
         </div>
       </Link>
     </li>
