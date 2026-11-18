@@ -56,7 +56,7 @@ try {
     )
     await client.query(
       `INSERT INTO brands (slug, position, is_default, name, header_lead, header_accent, logo_id, logo_alt)
-       VALUES ('anyone-home', 0, true, 'Anyone Home', 'AI Pod', 'Delivery Timelines', $1, 'Anyone Home by Entrata')`,
+       VALUES ('anyone-home', 0, true, 'Anyone Home', 'AI Pod', 'Delivery Timelines', $1, 'Anyone Home')`,
       [logo.id],
     )
   }

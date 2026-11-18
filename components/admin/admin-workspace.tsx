@@ -52,7 +52,7 @@ function AddBrandForm({ onCreated, onCancel }: { onCreated: (slug: string) => vo
     >
       <label className="flex flex-1 flex-col gap-1.5 text-sm font-medium">
         <span className="text-muted-foreground">Brand name</span>
-        <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} autoFocus placeholder="e.g. Kigo" />
+        <input className={inputClass} value={name} onChange={(e) => setName(e.target.value)} required maxLength={80} autoFocus placeholder="e.g. Acme" />
       </label>
       <label className="flex flex-1 flex-col gap-1.5 text-sm font-medium">
         <span className="text-muted-foreground">URL slug</span>
@@ -65,7 +65,7 @@ function AddBrandForm({ onCreated, onCancel }: { onCreated: (slug: string) => vo
           }}
           required
           maxLength={60}
-          placeholder="kigo"
+          placeholder="acme"
         />
       </label>
       <div className="flex gap-2">
