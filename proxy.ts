@@ -9,7 +9,7 @@ export async function proxy(request: NextRequest) {
     return isAuthed ? NextResponse.redirect(new URL('/', request.url)) : NextResponse.next()
   }
 
-  if (isAuthed) return NextResponse.next()
+  if (isAuthed || pathname.startsWith('/api/logos/')) return NextResponse.next()
 
   if (pathname.startsWith('/api/')) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

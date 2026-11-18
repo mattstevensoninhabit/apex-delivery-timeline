@@ -3,6 +3,7 @@ import { formatMilestoneDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
 import { Legend, statusLabel } from '@/components/delivery-timeline'
 import { TimelineExport } from '@/components/timeline-export'
+import type { PdfBranding } from '@/lib/branding'
 import type { Milestone, MilestoneStatus, Project } from '@/lib/milestones'
 
 const ROW_HEIGHT = 32
@@ -381,7 +382,17 @@ function MobileList({ data }: { data: ReturnType<typeof buildConsolidatedTimelin
   )
 }
 
-export function ConsolidatedTimeline({ projects }: { projects: Project[] }) {
+export function ConsolidatedTimeline({
+  projects,
+  lead = 'AI Pod',
+  fileName = 'consolidated-timeline',
+  branding,
+}: {
+  projects: Project[]
+  lead?: string
+  fileName?: string
+  branding?: PdfBranding
+}) {
   const data = buildConsolidatedTimeline(projects)
   const exportId = 'timeline-export-all'
   return (
@@ -400,10 +411,10 @@ export function ConsolidatedTimeline({ projects }: { projects: Project[] }) {
             id="timeline-title-all"
             className="text-balance text-2xl font-extrabold uppercase leading-tight tracking-tight text-foreground md:text-3xl"
           >
-            All AI Pod projects
+            All {lead} projects
           </h2>
         </div>
-        <TimelineExport targetId={exportId} fileName="ai-pod-consolidated-timeline" projects={projects} />
+        <TimelineExport targetId={exportId} fileName={fileName} projects={projects} branding={branding} />
       </div>
       <SummaryStrip lanes={data.lanes} />
       {!data.hasDated && (

@@ -18,8 +18,16 @@ export type Milestone = {
   dateSlipped?: boolean
 }
 
+export type LogoRef = { id: number; url: string }
+
 export type Project = {
   slug: string
+  brandSlug: string
+  pageTitle?: string
+  logo?: LogoRef
+  logoAlt?: string
+  colorAccent?: string
+  colorTimelineAccent?: string
   tabLabel: string
   tabDescription: string
   timelineTitle: string

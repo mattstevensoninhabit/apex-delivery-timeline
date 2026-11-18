@@ -3,7 +3,8 @@
 import { desc, eq, sql } from 'drizzle-orm'
 import { revalidatePath } from 'next/cache'
 import { db } from '@/lib/db'
-import { projectSnapshots, projects } from '@/lib/db/schema'
+import { brands, projectSnapshots, projects } from '@/lib/db/schema'
+import { HEX_COLOR } from '@/lib/branding'
 import type { ProjectSnapshot } from '@/lib/change-notes'
 import type { Milestone, MilestoneStatus } from '@/lib/milestones'
 
@@ -49,6 +50,16 @@ export type ProjectInput = {
   notes: string
   executiveNote: string
   milestonesDefining: boolean
+  brandSlug: string
+  pageTitle: string
+  logoAlt: string
+  colorAccent: string | null
+  colorTimelineAccent: string | null
+}
+
+function optionalColor(value: unknown): string | null | false {
+  if (value === null || value === undefined || value === '') return null
+  return typeof value === 'string' && HEX_COLOR.test(value) ? value.toLowerCase() : false
 }
 
 const MAX_NOTES = 2000
@@ -100,8 +111,20 @@ export async function saveProject(
       ? input.todayIndex
       : null
 
+  const colorAccent = optionalColor(input.colorAccent)
+  const colorTimelineAccent = optionalColor(input.colorTimelineAccent)
+  if (colorAccent === false || colorTimelineAccent === false) {
+    return { ok: false, error: 'Colors must be hex values like #0e6b9a.' }
+  }
+
   const [previous] = await db.select().from(projects).where(eq(projects.slug, slug)).limit(1)
   if (!previous) return { ok: false, error: 'Project not found.' }
+
+  const brandSlug = clean(input.brandSlug, 60) || previous.brandSlug
+  if (brandSlug !== previous.brandSlug) {
+    const [brand] = await db.select({ slug: brands.slug }).from(brands).where(eq(brands.slug, brandSlug)).limit(1)
+    if (!brand) return { ok: false, error: 'Selected brand does not exist.' }
+  }
 
   const timelineKey = (
     today: number | null,
@@ -139,6 +162,12 @@ export async function saveProject(
       notes: clean(input.notes, MAX_NOTES),
       executiveNote: clean(input.executiveNote, MAX_EXECUTIVE_NOTE),
       milestonesDefining: input.milestonesDefining === true,
+      brandSlug,
+      pageTitle: clean(input.pageTitle, 120) || null,
+      logoAlt: clean(input.logoAlt, 120) || null,
+      colorAccent,
+      colorTimelineAccent,
+      ...(brandSlug !== previous.brandSlug ? { position: sql`(select coalesce(max(position), -1) + 1 from projects where brand_slug = ${brandSlug})` } : {}),
       updatedAt: sql`now()`,
     })
     .where(eq(projects.slug, slug))
@@ -146,8 +175,7 @@ export async function saveProject(
 
   if (result.length === 0) return { ok: false, error: 'Project not found.' }
 
-  revalidatePath('/')
-  revalidatePath('/admin')
+  revalidatePath('/', 'layout')
   return { ok: true }
 }
 
@@ -165,20 +193,28 @@ function slugify(value: string) {
 export async function createProject(input: {
   name: string
   description: string
+  brandSlug: string
 }): Promise<{ ok: true; slug: string } | { ok: false; error: string }> {
   const tabLabel = clean(input?.name, 80)
   if (!tabLabel) return { ok: false, error: 'Project name is required.' }
+  const brandSlug = clean(input?.brandSlug, 60)
+  const [brand] = await db.select({ slug: brands.slug }).from(brands).where(eq(brands.slug, brandSlug)).limit(1)
+  if (!brand) return { ok: false, error: 'Brand not found.' }
 
-  const existing = await db.select({ slug: projects.slug, position: projects.position }).from(projects)
+  const existing = await db
+    .select({ slug: projects.slug, position: projects.position, brandSlug: projects.brandSlug })
+    .from(projects)
   const taken = new Set(existing.map((row) => row.slug))
   const base = slugify(tabLabel)
   let slug = base
   for (let n = 2; taken.has(slug); n++) slug = `${base}-${n}`
 
-  const position = existing.reduce((max, row) => Math.max(max, row.position), -1) + 1
+  const position =
+    existing.filter((row) => row.brandSlug === brandSlug).reduce((max, row) => Math.max(max, row.position), -1) + 1
 
   await db.insert(projects).values({
     slug,
+    brandSlug,
     position,
     tabLabel,
     tabDescription: clean(input?.description, 120),
@@ -189,27 +225,28 @@ export async function createProject(input: {
     notes: '',
   })
 
-  revalidatePath('/')
-  revalidatePath('/admin')
+  revalidatePath('/', 'layout')
   return { ok: true, slug }
 }
 
-export async function reorderProjects(slugs: string[]): Promise<{ ok: true } | { ok: false; error: string }> {
-  if (!Array.isArray(slugs) || slugs.some((s) => typeof s !== 'string')) {
+export async function reorderProjects(
+  brandSlug: string,
+  slugs: string[],
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (typeof brandSlug !== 'string' || !Array.isArray(slugs) || slugs.some((s) => typeof s !== 'string')) {
     return { ok: false, error: 'Invalid order.' }
   }
 
-  const existing = await db.select({ slug: projects.slug }).from(projects)
+  const existing = await db.select({ slug: projects.slug }).from(projects).where(eq(projects.brandSlug, brandSlug))
   const known = new Set(existing.map((row) => row.slug))
   if (slugs.length !== known.size || new Set(slugs).size !== slugs.length || slugs.some((s) => !known.has(s))) {
-    return { ok: false, error: 'Order must include every project exactly once.' }
+    return { ok: false, error: 'Order must include every project in this brand exactly once.' }
   }
 
   for (const [position, slug] of slugs.entries()) {
     await db.update(projects).set({ position }).where(eq(projects.slug, slug))
   }
 
-  revalidatePath('/')
-  revalidatePath('/admin')
+  revalidatePath('/', 'layout')
   return { ok: true }
 }

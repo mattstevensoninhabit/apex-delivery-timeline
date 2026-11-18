@@ -1,46 +1,15 @@
-import Link from 'next/link'
-import { ConsolidatedTimeline } from '@/components/consolidated-timeline'
-import { DeliveryTimeline } from '@/components/delivery-timeline'
-import { ProjectTabs } from '@/components/project-tabs'
+import { PodLanding } from '@/components/pod-landing'
+import { getBrands } from '@/lib/brands'
 import { getProjects } from '@/lib/projects'
 
 export const dynamic = 'force-dynamic'
 
 export default async function Page() {
-  const projects = await getProjects()
-
-  return (
-    <main className="mx-auto flex min-h-screen max-w-screen-2xl flex-col justify-center gap-6 px-4 py-10 md:px-8">
-      <header className="flex flex-col gap-2">
-        <img src="/anyone-home-logo.svg" alt="Anyone Home by Entrata" className="h-10 w-auto self-start md:h-12" />
-        <h1 className="text-balance text-3xl font-extrabold uppercase tracking-tight text-foreground md:text-4xl">
-          AI Pod <span className="text-primary">Delivery Timelines</span>
-        </h1>
-      </header>
-      <ProjectTabs
-        tabs={[
-          {
-            slug: 'all',
-            eyebrow: 'Overview',
-            label: 'All Projects',
-            description: 'Consolidated timeline',
-            panel: <ConsolidatedTimeline projects={projects} />,
-          },
-          ...projects.map((project, index) => ({
-            slug: project.slug,
-            eyebrow: `Project ${index + 1}`,
-            label: project.tabLabel,
-            description: project.tabDescription,
-            panel: <DeliveryTimeline project={project} />,
-          })),
-        ]}
-      />
-      <Link
-        href="/admin"
-        className="self-end text-sm font-medium text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
-      >
-        Admin
-      </Link>
-    </main>
-  )
+  const [brands, projects] = await Promise.all([getBrands(), getProjects()])
+  const pods = brands.map((brand) => ({
+    brand,
+    projects: projects.filter((p) => p.brandSlug === brand.slug),
+  }))
+  const shell = brands.find((b) => b.isDefault) ?? brands[0]
+  return <PodLanding pods={pods} shell={shell} />
 }

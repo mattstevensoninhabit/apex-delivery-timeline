@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { ClipboardList, Download, FileText, ImageIcon, Loader2 } from 'lucide-react'
+import type { PdfBranding } from '@/lib/branding'
 import type { Project } from '@/lib/milestones'
 import { cn } from '@/lib/utils'
 
@@ -40,10 +41,12 @@ export function TimelineExport({
   targetId,
   fileName,
   projects,
+  branding,
 }: {
   targetId: string
   fileName: string
   projects: Project[]
+  branding?: PdfBranding
 }) {
   const [pending, setPending] = useState<Format | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -56,7 +59,7 @@ export function TimelineExport({
     try {
       if (format === 'summary') {
         const { downloadExecutiveSummary } = await import('@/lib/executive-summary')
-        await downloadExecutiveSummary(projects, `${fileName}-executive-summary`)
+        await downloadExecutiveSummary(projects, `${fileName}-executive-summary`, { branding })
         return
       }
       const { dataUrl, width, height } = await renderTimeline(target)

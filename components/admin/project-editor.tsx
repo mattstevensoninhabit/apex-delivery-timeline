@@ -8,6 +8,9 @@ import { describeChanges } from '@/lib/change-notes'
 import { getChangeBaseline, saveProject, type ProjectInput } from '@/app/actions/projects'
 import { Button, buttonVariants } from '@/components/ui/button'
 import { DatePicker } from '@/components/admin/date-picker'
+import { HEX_COLOR, type Brand } from '@/lib/branding'
+import { ColorField } from './color-field'
+import { LogoUploader } from './logo-uploader'
 import { MILESTONE_STATUSES, type MilestoneStatus, type Project } from '@/lib/milestones'
 
 type DraftMilestone = ProjectInput['milestones'][number] & { key: string }
@@ -18,7 +21,14 @@ const inputClass =
 let keySeed = 0
 const nextKey = () => `m-${keySeed++}`
 
-export function ProjectEditor({ project }: { project: Project }) {
+export function ProjectEditor({ project, brands }: { project: Project; brands: Brand[] }) {
+  const [brandSlug, setBrandSlug] = useState(project.brandSlug)
+  const [pageTitle, setPageTitle] = useState(project.pageTitle ?? '')
+  const [logoAlt, setLogoAlt] = useState(project.logoAlt ?? '')
+  const [colorAccent, setColorAccent] = useState(project.colorAccent ?? '')
+  const [colorTimelineAccent, setColorTimelineAccent] = useState(project.colorTimelineAccent ?? '')
+  const brand = brands.find((b) => b.slug === brandSlug) ?? brands[0]
+  const brandingValid = [colorAccent, colorTimelineAccent].every((c) => c === '' || HEX_COLOR.test(c))
   const router = useRouter()
   const [pending, startTransition] = useTransition()
   const [generating, startGenerating] = useTransition()
@@ -136,6 +146,15 @@ export function ProjectEditor({ project }: { project: Project }) {
       notes,
       executiveNote,
       milestonesDefining,
+      brandSlug,
+      pageTitle,
+      logoAlt,
+      colorAccent: colorAccent || null,
+      colorTimelineAccent: colorTimelineAccent || null,
+    }
+    if (!brandingValid) {
+      setMessage({ type: 'error', text: 'Fix the branding colors before saving.' })
+      return
     }
     startTransition(async () => {
       const result = await saveProject(project.slug, input)
@@ -252,6 +271,52 @@ export function ProjectEditor({ project }: { project: Project }) {
               </Button>
             </div>
           </div>
+        </div>
+      </section>
+
+      <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 text-card-foreground">
+        <div className="flex flex-col gap-0.5">
+          <h2 className="text-lg font-bold">Project branding</h2>
+          <p className="text-sm text-muted-foreground">Leave fields blank to use the {brand?.name ?? 'brand'} defaults.</p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Brand">
+            <select className={inputClass} value={brandSlug} onChange={(e) => setBrandSlug(e.target.value)}>
+              {brands.map((b) => (
+                <option key={b.slug} value={b.slug}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Page title (optional)">
+            <input
+              className={inputClass}
+              value={pageTitle}
+              onChange={(e) => setPageTitle(e.target.value)}
+              maxLength={120}
+              placeholder={brand ? `${brand.headerLead} ${brand.headerAccent}`.trim() : ''}
+            />
+          </Field>
+          <LogoUploader
+            target="project"
+            slug={project.slug}
+            logo={project.logo}
+            fallbackUrl={brand?.logo?.url}
+            label="Project logo (optional)"
+            hint="Replaces the brand logo on this project's tab and PDF."
+          />
+          <Field label="Logo alt text">
+            <input className={inputClass} value={logoAlt} onChange={(e) => setLogoAlt(e.target.value)} maxLength={120} placeholder={brand?.logoAlt} />
+          </Field>
+          <ColorField label="Accent override" value={colorAccent} onChange={setColorAccent} placeholder={brand?.colors.accent} optional />
+          <ColorField
+            label="Timeline accent override"
+            value={colorTimelineAccent}
+            onChange={setColorTimelineAccent}
+            placeholder={brand?.colors.timelineAccent}
+            optional
+          />
         </div>
       </section>
 
