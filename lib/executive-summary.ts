@@ -135,38 +135,79 @@ class SummaryWriter {
     }
   }
 
+  private measure(text: string, charSpace = 0) {
+    return this.pdf.getTextWidth(text) + charSpace * text.length
+  }
+
+  private truncate(text: string, maxWidth: number, charSpace = 0) {
+    const clean = toPdfText(text)
+    if (this.measure(clean, charSpace) <= maxWidth) return clean
+    let end = clean.length
+    while (end > 0 && this.measure(`${clean.slice(0, end).trimEnd()}...`, charSpace) > maxWidth) end--
+    return `${clean.slice(0, end).trimEnd()}...`
+  }
+
+  private wrap(text: string, maxWidth: number, maxLines: number) {
+    const lines = this.pdf.splitTextToSize(toPdfText(text), maxWidth) as string[]
+    if (lines.length <= maxLines) return lines
+    const kept = lines.slice(0, maxLines)
+    kept[maxLines - 1] = this.truncate(lines.slice(maxLines - 1).join(' '), maxWidth)
+    return kept
+  }
+
   header(title: string, subtitle: string, branding?: PdfBranding, logo?: LoadedLogo | null) {
     const fill = hexToRgb(branding?.background) ?? NAVY
     const accent = hexToRgb(branding?.accent) ?? GREEN
+
+    let logoWidth = 0
+    let logoHeight = 0
+    if (logo) {
+      logoWidth = Math.min(160, (logo.width / logo.height) * 28)
+      logoHeight = (logoWidth / logo.width) * logo.height
+    }
+    const textWidth = this.contentWidth - (logoWidth ? logoWidth + 24 : 0)
+
+    this.pdf.setFont('helvetica', 'bold')
+    let titleSize = 20
+    this.pdf.setFontSize(titleSize)
+    let titleLines = this.pdf.splitTextToSize(toPdfText(title.toUpperCase()), textWidth) as string[]
+    if (titleLines.length > 2) {
+      titleSize = 16
+      this.pdf.setFontSize(titleSize)
+    }
+    titleLines = this.wrap(title.toUpperCase(), textWidth, 2)
+    const titleLeading = titleSize * 1.15
+    const extra = (titleLines.length - 1) * titleLeading
+    const headerHeight = 96 + extra
+
     this.color(fill, 'fill')
-    this.pdf.rect(0, 0, this.width, 96, 'F')
+    this.pdf.rect(0, 0, this.width, headerHeight, 'F')
     this.color(accent, 'fill')
-    this.pdf.rect(0, 96, this.width, 4, 'F')
+    this.pdf.rect(0, headerHeight, this.width, 4, 'F')
 
     if (logo) {
-      const height = 28
-      const width = Math.min(160, (logo.width / logo.height) * height)
-      this.pdf.addImage(logo.dataUrl, 'PNG', this.width - PAGE_MARGIN - width, 24, width, (width / logo.width) * logo.height)
+      this.pdf.addImage(logo.dataUrl, 'PNG', this.width - PAGE_MARGIN - logoWidth, 24, logoWidth, logoHeight)
     }
 
-    const eyebrow = branding
-      ? [branding.name, branding.lead].filter(Boolean).join('  |  ')
-      : 'Anyone Home  |  AI Pod'
-    this.pdf.setFont('helvetica', 'bold')
+    const eyebrowParts = branding ? [branding.name, branding.lead] : ['Anyone Home', 'AI Pod']
+    const eyebrow = eyebrowParts
+      .filter((part): part is string => Boolean(part?.trim()))
+      .filter((part, i, all) => all.findIndex((p) => p.trim().toLowerCase() === part.trim().toLowerCase()) === i)
+      .join('  |  ')
     this.pdf.setFontSize(9)
     this.color(accent, 'text')
-    this.pdf.text(toPdfText(eyebrow.toUpperCase()), PAGE_MARGIN, 38, { charSpace: 1.2 })
+    this.pdf.text(this.truncate(eyebrow.toUpperCase(), textWidth, 1.2), PAGE_MARGIN, 38, { charSpace: 1.2 })
 
-    this.pdf.setFontSize(20)
+    this.pdf.setFontSize(titleSize)
     this.pdf.setTextColor(255, 255, 255)
-    this.pdf.text(title.toUpperCase(), PAGE_MARGIN, 62)
+    this.pdf.text(titleLines, PAGE_MARGIN, 62, { lineHeightFactor: 1.15 })
 
     this.pdf.setFont('helvetica', 'normal')
     this.pdf.setFontSize(10)
     this.pdf.setTextColor(200, 214, 230)
-    this.pdf.text(subtitle, PAGE_MARGIN, 80)
+    this.pdf.text(this.truncate(subtitle, this.contentWidth), PAGE_MARGIN, 80 + extra)
 
-    this.y = 132
+    this.y = 132 + extra
   }
 
   sectionTitle(text: string, eyebrow?: string) {
@@ -175,13 +216,15 @@ class SummaryWriter {
       this.pdf.setFont('helvetica', 'bold')
       this.pdf.setFontSize(8)
       this.color(BLUE, 'text')
-      this.pdf.text(eyebrow.toUpperCase(), PAGE_MARGIN, this.y, { charSpace: 1.2 })
+      this.pdf.text(this.truncate(eyebrow.toUpperCase(), this.contentWidth, 1.2), PAGE_MARGIN, this.y, {
+        charSpace: 1.2,
+      })
       this.y += 16
     }
     this.pdf.setFont('helvetica', 'bold')
     this.pdf.setFontSize(15)
     this.color(NAVY, 'text')
-    this.pdf.text(text, PAGE_MARGIN, this.y)
+    this.pdf.text(this.truncate(text, this.contentWidth), PAGE_MARGIN, this.y)
     this.y += 10
     this.color(RULE, 'draw')
     this.pdf.setLineWidth(0.75)
