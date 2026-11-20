@@ -16,6 +16,17 @@ export type Milestone = {
   date: string
   status: MilestoneStatus
   dateSlipped?: boolean
+  executive?: boolean
+  baselineDate?: string
+  completedDate?: string
+}
+
+export type FinalMilestone = {
+  id: number
+  title: string
+  date: string
+  baselineDate?: string
+  completedDate?: string
 }
 
 export type LogoRef = { id: number; url: string }
@@ -33,7 +44,8 @@ export type Project = {
   timelineTitle: string
   todayMilestoneId?: number
   milestones: Milestone[]
-  finalMilestone?: { id: number; title: string; date: string }
+  finalMilestone?: FinalMilestone
+  baselinedAt?: string
   notes?: string
   executiveNote?: string
   milestonesDefining?: boolean

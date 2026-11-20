@@ -1,6 +1,14 @@
 import type { jsPDF } from 'jspdf'
 import type { PdfBranding } from './branding'
-import { buildConsolidatedTimeline } from './consolidated'
+import { buildAxis, buildConsolidatedTimeline } from './consolidated'
+import {
+  deliveryStatus,
+  forecastDate,
+  isSlipped,
+  milestoneVariance,
+  nextOpenMilestone,
+  type DeliveryStatus,
+} from './schedule'
 import { formatMilestoneDate, parseIsoDate } from './dates'
 import { MILESTONE_STATUSES, isOpenMilestone, type Milestone, type MilestoneStatus, type Project } from './milestones'
 
@@ -44,7 +52,30 @@ const ROW_TINT: Rgb = [242, 247, 251]
 const TODAY_RED: Rgb = [214, 48, 49]
 const DEFERRED_GRAY: Rgb = [176, 186, 198]
 
+const BAR_TINT: Rgb = [200, 222, 238]
+const DONE_TINT: Rgb = [214, 236, 199]
+const HALO: Rgb = [196, 224, 242]
+
 const TIMELINE_ROW = 22
+const ROADMAP_ROW = 60
+
+type Axis = ReturnType<typeof buildAxis>
+type RoadmapRow = {
+  project: Project
+  next: Milestone | undefined
+  points: { m: Milestone; t: number }[]
+  startT: number | undefined
+  endT: number | undefined
+  forecastT: number | undefined
+  baselineT: number | undefined
+  progressT: number | undefined
+  tbc: number
+  delivery: DeliveryStatus
+}
+
+const isNumber = (value: number | undefined): value is number => value !== undefined
+const timeOf = (value: string) => parseIsoDate(value)?.getTime()
+const shortDate = (value: string) => formatMilestoneDate(value).replace(/ \d{4}$/, '')
 
 const PAGE_MARGIN = 48
 const FOOTER_SPACE = 40
@@ -98,7 +129,7 @@ function nextMilestone(project: Project, today: number): Milestone | undefined {
 function overallHealth(project: Project): { label: string; color: Rgb } {
   if (project.milestonesDefining) return { label: 'Being defined', color: BLUE }
   if (project.milestones.length === 0) return { label: 'Not yet planned', color: MUTED }
-  if (project.milestones.some((m) => m.status === 'at-risk' || (m.dateSlipped && isOpenMilestone(m.status)))) {
+  if (project.milestones.some((m) => m.status === 'at-risk' || isSlipped(m))) {
     return { label: 'Needs attention', color: AMBER }
   }
   return { label: 'On track', color: GREEN }
@@ -316,7 +347,7 @@ class SummaryWriter {
         date: dateText(m.date),
         status: STATUS_LABEL[m.status],
         color: STATUS_COLOR[m.status],
-        slipped: Boolean(m.dateSlipped),
+        slipped: m.baselineDate ? (milestoneVariance(m) ?? 0) > 0 : Boolean(m.dateSlipped),
       }))
     if (project.finalMilestone) {
       rows.push({
@@ -511,8 +542,476 @@ class SummaryWriter {
     this.y += legendHeight - 2
   }
 
+  roadmap(projects: Project[], today: number) {
+    const rows: RoadmapRow[] = projects.map((project) => {
+      const points = project.milestones
+        .map((m) => ({ m, t: timeOf(forecastDate(m)) }))
+        .filter((e): e is { m: Milestone; t: number } => e.t !== undefined)
+        .sort((a, b) => a.t - b.t)
+      const dated = points.map((p) => p.t)
+      const delivered = points.filter((p) => p.m.status === 'delivered').map((p) => p.t)
+      const final = project.finalMilestone
+      const forecastT = final ? timeOf(forecastDate(final)) : undefined
+      const baselineT = final?.baselineDate && project.baselinedAt ? timeOf(final.baselineDate) : undefined
+      const tbc =
+        project.milestones.filter((m) => timeOf(m.date) === undefined).length + (final && forecastT === undefined ? 1 : 0)
+      return {
+        project,
+        next: nextOpenMilestone(project, today),
+        points,
+        startT: dated.length ? Math.min(...dated) : forecastT,
+        endT: forecastT ?? (dated.length ? Math.max(...dated) : undefined),
+        forecastT,
+        baselineT,
+        progressT: delivered.length ? Math.max(...delivered) : undefined,
+        tbc,
+        delivery: deliveryStatus(project),
+      }
+    })
+
+    const axis = buildAxis(
+      rows.flatMap((r) => [r.startT, r.endT, r.baselineT]).filter(isNumber),
+      new Date(today),
+    )
+    if (!axis.hasDated) {
+      this.note('Dates to be confirmed - no milestones have been scheduled yet.')
+      return
+    }
+
+    const tagSpace = axis.todayPosition !== undefined ? 16 : 0
+    const axisHeight = 16
+    let start = 0
+    while (start < rows.length) {
+      const room = this.height - FOOTER_SPACE - this.y - tagSpace - axisHeight
+      const count = Math.floor(room / ROADMAP_ROW)
+      const minimum = start === 0 ? Math.min(rows.length, 2) : 1
+      if (count < minimum && this.y > PAGE_MARGIN) {
+        this.pdf.addPage()
+        this.y = PAGE_MARGIN
+        continue
+      }
+      const chunk = rows.slice(start, start + Math.max(1, count))
+      this.drawRoadmapChunk(chunk, axis, tagSpace, axisHeight)
+      start += chunk.length
+      if (start < rows.length) {
+        this.pdf.addPage()
+        this.y = PAGE_MARGIN
+      }
+    }
+
+    this.ensure(48)
+    this.y += 18
+    this.drawRoadmapLegend(axis.todayPosition !== undefined, rows.some((r) => r.baselineT !== undefined))
+    this.y += 24
+  }
+
+  private drawRoadmapChunk(rows: RoadmapRow[], axis: Axis, tagSpace: number, axisHeight: number) {
+    const gutter = 110
+    const chipW = 76
+    const chartX = PAGE_MARGIN + gutter + 10
+    const chartRight = PAGE_MARGIN + this.contentWidth - chipW - 14
+    const chartW = chartRight - chartX
+    const chipX = PAGE_MARGIN + this.contentWidth - chipW - 4
+    const xAt = (time: number) => chartX + (axis.toPosition(time) / 100) * chartW
+
+    const axisTop = this.y + tagSpace
+    const rowsTop = axisTop + axisHeight
+    const rowsBottom = rowsTop + rows.length * ROADMAP_ROW
+
+    this.pdf.setFont('helvetica', 'bold')
+    this.pdf.setFontSize(7.5)
+    this.color(NAVY, 'text')
+    for (const month of axis.months) {
+      this.pdf.text(month.label.toUpperCase(), chartX + (month.position / 100) * chartW + 2, axisTop + 9, {
+        charSpace: 0.8,
+      })
+    }
+    this.color(MUTED, 'text')
+    this.pdf.text('DELIVERY', chipX + chipW / 2, axisTop + 9, { align: 'center', charSpace: 0.8 })
+
+    rows.forEach((_, i) => {
+      if (i % 2 === 0) {
+        this.color(ROW_TINT, 'fill')
+        this.pdf.rect(PAGE_MARGIN, rowsTop + i * ROADMAP_ROW, this.contentWidth, ROADMAP_ROW, 'F')
+      }
+    })
+    this.color(RULE, 'draw')
+    this.pdf.setLineWidth(0.5)
+    for (const tick of axis.ticks) {
+      const x = chartX + (tick.position / 100) * chartW
+      this.pdf.line(x, axisTop + 12, x, rowsBottom)
+    }
+    this.pdf.line(PAGE_MARGIN, rowsTop, PAGE_MARGIN + this.contentWidth, rowsTop)
+    this.pdf.line(PAGE_MARGIN, rowsBottom, PAGE_MARGIN + this.contentWidth, rowsBottom)
+
+    if (axis.todayPosition !== undefined) {
+      const x = chartX + (axis.todayPosition / 100) * chartW
+      this.color(TODAY_RED, 'draw')
+      this.pdf.setLineWidth(1)
+      this.pdf.setLineDashPattern([3, 2], 0)
+      this.pdf.line(x, axisTop - 2, x, rowsBottom)
+      this.pdf.setLineDashPattern([], 0)
+      this.color(TODAY_RED, 'fill')
+      this.pdf.roundedRect(x - 15, this.y, 30, 11, 2, 2, 'F')
+      this.pdf.setFont('helvetica', 'bold')
+      this.pdf.setFontSize(6)
+      this.pdf.setTextColor(255, 255, 255)
+      this.pdf.text('TODAY', x, this.y + 7.8, { align: 'center', charSpace: 0.4 })
+    }
+
+    rows.forEach((row, i) => {
+      const top = rowsTop + i * ROADMAP_ROW
+      const cy = top + 25
+
+      if (row.startT !== undefined && row.endT !== undefined) {
+        const x0 = xAt(row.startT)
+        const x1 = Math.max(x0 + 6, xAt(row.endT))
+        this.color(BAR_TINT, 'fill')
+        this.pdf.roundedRect(x0, cy - 2, x1 - x0, 4, 2, 2, 'F')
+        if (row.progressT !== undefined) {
+          const px = Math.min(x1, Math.max(x0 + 4, xAt(row.progressT)))
+          this.color(DONE_TINT, 'fill')
+          this.pdf.roundedRect(x0, cy - 2, px - x0, 4, 2, 2, 'F')
+        }
+      } else {
+        this.pdf.setFont('helvetica', 'italic')
+        this.pdf.setFontSize(8)
+        this.color(MUTED, 'text')
+        this.pdf.text('Dates TBC', chartX, cy + 2.5)
+      }
+
+      if (row.forecastT !== undefined && row.baselineT !== undefined && row.baselineT !== row.forecastT) {
+        const xf = xAt(row.forecastT)
+        const xb = xAt(row.baselineT)
+        this.color(NAVY, 'draw')
+        this.pdf.setLineWidth(0.75)
+        this.pdf.setLineDashPattern([2, 1.5], 0)
+        this.pdf.line(Math.min(xb, xf), cy, Math.max(xb, xf), cy)
+        this.pdf.setLineDashPattern([], 0)
+        this.drawRoadmapDiamond(xb, cy, 4.5, false)
+      }
+
+      const nextId = row.next?.id
+      for (const { m, t } of row.points) {
+        if (m.id === nextId) continue
+        this.drawStatusMarker(xAt(t), cy, m.status, { moved: isSlipped(m) })
+      }
+      const nextPoint = row.points.find((p) => p.m.id === nextId)
+      if (nextPoint) this.drawStatusMarker(xAt(nextPoint.t), cy, nextPoint.m.status, { next: true, moved: isSlipped(nextPoint.m) })
+      if (row.forecastT !== undefined) this.drawRoadmapDiamond(xAt(row.forecastT), cy, 5, true)
+
+      const hidden = this.drawRoadmapLabels(row, xAt, cy, chartX - 6, chartRight)
+
+      this.pdf.setFont('helvetica', 'bold')
+      this.pdf.setFontSize(8.5)
+      this.color(NAVY, 'text')
+      const nameLines = this.wrap(row.project.tabLabel, gutter - 8, 2)
+      const nameY = cy + 3 - (nameLines.length - 1) * 5
+      this.pdf.text(nameLines, PAGE_MARGIN + 8, nameY)
+      if (hidden > 0) {
+        this.pdf.setFont('helvetica', 'normal')
+        this.pdf.setFontSize(7)
+        this.color(MUTED, 'text')
+        this.pdf.text(`+${hidden} more milestone${hidden === 1 ? '' : 's'}`, PAGE_MARGIN + 8, nameY + nameLines.length * 10 + 1)
+      }
+
+      this.deliveryChip(row.delivery, row.project, chipX, cy - 12, chipW, row.tbc)
+    })
+
+    this.y = rowsBottom
+  }
+
+  private drawRoadmapLabels(row: RoadmapRow, xAt: (t: number) => number, cy: number, left: number, right: number) {
+    type Label = {
+      x: number
+      prefix: string
+      title: string
+      chip: string
+      date: string
+      color: Rgb
+      bold: boolean
+      priority: boolean
+      width: number
+    }
+    const titleMax = 70
+    const build = (input: Omit<Label, 'width' | 'title'> & { title: string }): Label => {
+      this.pdf.setFontSize(7)
+      this.pdf.setFont('helvetica', 'bold')
+      const prefixW = input.prefix ? this.measure(input.prefix) : 0
+      this.pdf.setFontSize(6)
+      const chipW = input.chip ? this.measure(input.chip) + 6 : 0
+      this.pdf.setFontSize(7)
+      this.pdf.setFont('helvetica', input.bold ? 'bold' : 'normal')
+      const title = this.truncate(input.title, titleMax)
+      const lineW = prefixW + this.measure(title) + (chipW ? chipW + 3 : 0)
+      this.pdf.setFont('helvetica', 'normal')
+      this.pdf.setFontSize(6.5)
+      const width = Math.max(lineW, this.measure(input.date))
+      return { ...input, title, width }
+    }
+
+    const labels: Label[] = row.points.map(({ m, t }) => {
+      const isNext = m.id === row.next?.id
+      const slipped = isSlipped(m)
+      const warn = m.status === 'at-risk' || slipped
+      const variance = slipped && m.baselineDate ? (milestoneVariance(m) ?? 0) : 0
+      return build({
+        x: xAt(t),
+        prefix: isNext ? 'NEXT ' : '',
+        title: m.title,
+        chip: variance > 0 ? `+${variance}d` : '',
+        date: shortDate(forecastDate(m)),
+        color: warn ? AMBER : m.status === 'delivered' || m.status === 'deferred' ? MUTED : NAVY,
+        bold: warn || isNext,
+        priority: isNext || warn,
+      })
+    })
+    const final = row.project.finalMilestone
+    if (final && row.forecastT !== undefined) {
+      labels.push(
+        build({
+          x: xAt(row.forecastT),
+          prefix: '',
+          title: final.title,
+          chip: '',
+          date: final.completedDate ? `Delivered ${shortDate(final.completedDate)}` : shortDate(forecastDate(final)),
+          color: NAVY,
+          bold: true,
+          priority: true,
+        }),
+      )
+    }
+
+    const lanes: [number, number][][] = [[], []]
+    const fits = (lane: number, l: number, r: number) => lanes[lane].every(([a, b]) => r + 5 <= a || l >= b + 5)
+    const ordered = [...labels.filter((l) => l.priority), ...labels.filter((l) => !l.priority)]
+    let hidden = 0
+
+    for (const label of ordered) {
+      const l = Math.max(left, Math.min(label.x - label.width / 2, right - label.width))
+      const r = l + label.width
+      let lane = fits(0, l, r) ? 0 : fits(1, l, r) ? 1 : -1
+      if (lane === -1) {
+        if (!label.priority) {
+          hidden++
+          continue
+        }
+        lane = 0
+      }
+      lanes[lane].push([l, r])
+
+      const titleY = lane === 0 ? cy + 15 : cy - 18
+      const dateY = titleY + 7
+      let x = l
+      this.pdf.setFontSize(7)
+      if (label.prefix) {
+        this.pdf.setFont('helvetica', 'bold')
+        this.color(BLUE, 'text')
+        this.pdf.text(label.prefix, x, titleY)
+        x += this.measure(label.prefix)
+      }
+      this.pdf.setFont('helvetica', label.bold ? 'bold' : 'normal')
+      this.color(label.color, 'text')
+      this.pdf.text(label.title, x, titleY)
+      x += this.measure(label.title) + 3
+      if (label.chip) {
+        this.pdf.setFont('helvetica', 'bold')
+        this.pdf.setFontSize(6)
+        const chipW = this.measure(label.chip) + 6
+        this.color(AMBER, 'fill')
+        this.pdf.roundedRect(x, titleY - 6, chipW, 8, 2, 2, 'F')
+        this.pdf.setTextColor(255, 255, 255)
+        this.pdf.text(label.chip, x + 3, titleY)
+      }
+      this.pdf.setFont('helvetica', 'normal')
+      this.pdf.setFontSize(6.5)
+      this.color(MUTED, 'text')
+      this.pdf.text(label.date, l, dateY)
+    }
+    return hidden
+  }
+
+  private drawStatusMarker(
+    x: number,
+    y: number,
+    status: MilestoneStatus,
+    { next = false, moved = false }: { next?: boolean; moved?: boolean } = {},
+  ) {
+    const r = next ? 4.8 : 3.4
+    if (next) {
+      this.color(HALO, 'fill')
+      this.pdf.circle(x, y, r + 3.2, 'F')
+    }
+    if (moved) {
+      this.color(AMBER, 'draw')
+      this.pdf.setLineWidth(1.1)
+      this.pdf.circle(x, y, r + 1.8, 'S')
+    }
+    this.pdf.setLineWidth(0.9)
+
+    if (status === 'delivered') {
+      this.color(GREEN, 'fill')
+      this.pdf.circle(x, y, r, 'F')
+      this.pdf.setDrawColor(255, 255, 255)
+      this.pdf.setLineWidth(next ? 1.1 : 0.8)
+      this.pdf.line(x - r * 0.45, y + r * 0.02, x - r * 0.1, y + r * 0.38)
+      this.pdf.line(x - r * 0.1, y + r * 0.38, x + r * 0.5, y - r * 0.35)
+    } else if (status === 'in-progress') {
+      this.color(BLUE, 'fill')
+      this.pdf.circle(x, y, r, 'F')
+    } else if (status === 'at-risk') {
+      this.color(AMBER, 'fill')
+      this.pdf.circle(x, y, r, 'F')
+      this.pdf.setFont('helvetica', 'bold')
+      this.pdf.setFontSize(next ? 7 : 5.5)
+      this.pdf.setTextColor(255, 255, 255)
+      this.pdf.text('!', x, y + (next ? 2.5 : 2), { align: 'center' })
+    } else if (status === 'deferred') {
+      this.pdf.setFillColor(255, 255, 255)
+      this.color(DEFERRED_GRAY, 'draw')
+      this.pdf.setLineDashPattern([1.2, 1], 0)
+      this.pdf.circle(x, y, r, 'FD')
+      this.pdf.setLineDashPattern([], 0)
+    } else {
+      this.pdf.setFillColor(255, 255, 255)
+      this.color(next ? BLUE : MUTED, 'draw')
+      this.pdf.setLineWidth(next ? 1.4 : 0.9)
+      this.pdf.circle(x, y, r, 'FD')
+      if (next) {
+        this.color(BLUE, 'fill')
+        this.pdf.circle(x, y, 1.8, 'F')
+      }
+    }
+  }
+
+  private drawRoadmapLegend(showToday: boolean, showBaseline: boolean) {
+    const marker = (status: MilestoneStatus, options: { next?: boolean; moved?: boolean } = {}) => {
+      const half = options.next ? 8 : options.moved ? 5.2 : 3.4
+      return {
+        width: half * 2,
+        draw: (x: number, y: number) => this.drawStatusMarker(x + half, y, status, options),
+      }
+    }
+    const items: { label: string; width: number; draw: (x: number, y: number) => void }[] = [
+      { label: 'Complete', ...marker('delivered') },
+      { label: 'In progress', ...marker('in-progress') },
+      { label: 'Planned', ...marker('not-started') },
+      { label: 'At risk', ...marker('at-risk') },
+      { label: 'Deferred', ...marker('deferred') },
+      { label: 'Date moved', ...marker('not-started', { moved: true }) },
+      { label: 'Next milestone', ...marker('in-progress', { next: true }) },
+      { label: 'Forecast delivery', width: 10, draw: (x, y) => this.drawRoadmapDiamond(x + 5, y, 5, true) },
+      ...(showBaseline
+        ? [{ label: 'Baseline', width: 9, draw: (x: number, y: number) => this.drawRoadmapDiamond(x + 4.5, y, 4.5, false) }]
+        : []),
+    ]
+    if (showToday) {
+      items.push({
+        label: 'Today',
+        width: 2,
+        draw: (x, y) => {
+          this.color(TODAY_RED, 'draw')
+          this.pdf.setLineWidth(1)
+          this.pdf.setLineDashPattern([2, 1.5], 0)
+          this.pdf.line(x + 1, y - 5, x + 1, y + 5)
+          this.pdf.setLineDashPattern([], 0)
+        },
+      })
+    }
+
+    let x = PAGE_MARGIN
+    for (const item of items) {
+      this.pdf.setFont('helvetica', 'normal')
+      this.pdf.setFontSize(7.5)
+      const itemWidth = item.width + 5 + this.measure(item.label)
+      if (x + itemWidth > PAGE_MARGIN + this.contentWidth) {
+        x = PAGE_MARGIN
+        this.y += 16
+      }
+      item.draw(x, this.y)
+      this.pdf.setFont('helvetica', 'normal')
+      this.pdf.setFontSize(7.5)
+      this.color(MUTED, 'text')
+      this.pdf.text(item.label, x + item.width + 5, this.y + 2.6)
+      x += itemWidth + 14
+    }
+  }
+
+  private deliveryChip(status: DeliveryStatus, project: Project, x: number, y: number, width: number, tbc = 0) {
+    const chip =
+      status.kind === 'on-schedule'
+        ? { label: 'On schedule', color: GREEN, solid: true }
+        : status.kind === 'ahead'
+          ? { label: `Ahead ${status.days}d`, color: GREEN, solid: true }
+          : status.kind === 'behind'
+            ? { label: `Behind ${status.days}d`, color: status.days > 14 ? TODAY_RED : AMBER, solid: true }
+            : status.kind === 'tbc'
+              ? { label: 'Date TBC', color: MUTED, solid: false }
+              : undefined
+
+    const drawTbc = (ty: number) => {
+      if (tbc <= 0) return
+      this.pdf.setFont('helvetica', 'bold')
+      this.pdf.setFontSize(6.5)
+      this.color(MUTED, 'text')
+      this.pdf.text(`+${tbc} TBC`, x + width / 2, ty, { align: 'center' })
+    }
+
+    if (!chip) {
+      this.deliveryDate(project, x, y + 9.6, width)
+      drawTbc(y + 19)
+      return
+    }
+
+    if (chip.solid) {
+      this.color(chip.color, 'fill')
+      this.pdf.roundedRect(x, y, width, 14, 7, 7, 'F')
+      this.pdf.setTextColor(255, 255, 255)
+    } else {
+      this.color(DEFERRED_GRAY, 'draw')
+      this.pdf.setLineWidth(0.75)
+      this.pdf.roundedRect(x, y, width, 14, 7, 7, 'S')
+      this.color(chip.color, 'text')
+    }
+    this.pdf.setFont('helvetica', 'bold')
+    this.pdf.setFontSize(7.5)
+    this.pdf.text(chip.label, x + width / 2, y + 9.6, { align: 'center' })
+    this.deliveryDate(project, x, y + 23, width)
+    drawTbc(y + 32)
+  }
+
+  private deliveryDate(project: Project, x: number, y: number, width: number) {
+    const final = project.finalMilestone
+    if (!final || !parseIsoDate(forecastDate(final))) return
+    this.pdf.setFont('helvetica', 'normal')
+    this.pdf.setFontSize(7)
+    this.color(MUTED, 'text')
+    const text = final.completedDate ? `Delivered ${shortDate(final.completedDate)}` : formatMilestoneDate(final.date)
+    this.pdf.text(this.truncate(text, width), x + width / 2, y, { align: 'center' })
+  }
+
+  private drawRoadmapDiamond(x: number, y: number, size: number, solid: boolean) {
+    this.pdf.setLineWidth(1)
+    this.color(NAVY, 'draw')
+    if (solid) this.color(NAVY, 'fill')
+    else this.pdf.setFillColor(255, 255, 255)
+    this.pdf.lines(
+      [
+        [size, -size],
+        [size, size],
+        [-size, size],
+        [-size, -size],
+      ],
+      x - size,
+      y,
+      [1, 1],
+      'FD',
+      true,
+    )
+  }
+
   private drawDot(x: number, y: number, milestone: Milestone, fill: Rgb) {
-    if (milestone.dateSlipped && isOpenMilestone(milestone.status)) {
+    if (isSlipped(milestone)) {
       this.color(AMBER, 'draw')
       this.pdf.setLineWidth(1.5)
       this.pdf.circle(x, y, 9.5, 'S')
@@ -722,11 +1221,12 @@ function writeProject(
   writer.bulletList(
     'Risks & slipped dates',
     project.milestones
-      .filter((m) => isOpenMilestone(m.status) && (m.status === 'at-risk' || m.dateSlipped))
-      .map(
-        (m) =>
-          `Milestone ${m.id}: ${m.title} - ${m.status === 'at-risk' ? 'at risk' : 'date moved'} (${dateText(m.date)})`,
-      ),
+      .filter((m) => isOpenMilestone(m.status) && (m.status === 'at-risk' || isSlipped(m)))
+      .map((m) => {
+        const days = m.baselineDate ? milestoneVariance(m) : undefined
+        const moved = days && days > 0 ? `moved ${days}d` : 'date moved'
+        return `Milestone ${m.id}: ${m.title} - ${m.status === 'at-risk' ? 'at risk' : moved} (${dateText(m.date)})`
+      }),
     AMBER,
   )
 
@@ -770,8 +1270,8 @@ export async function downloadExecutiveSummary(
   if (isPortfolio) {
     writer.sectionTitle('Portfolio overview', 'At a glance')
     writer.overviewTable(projects, today)
-    writer.sectionTitle('Portfolio timeline', 'Schedule')
-    writer.timeline(projects, { showLaneLabels: true })
+    writer.sectionTitle('Delivery roadmap', 'Schedule')
+    writer.roadmap(projects, today)
     writer.space(16)
     projects.forEach((project, i) =>
       writeProject(writer, project, today, { eyebrow: `Project ${i + 1}`, showTimeline: false }),

@@ -50,6 +50,7 @@ export const projects = pgTable('projects', {
   notes: text('notes').notNull().default(''),
   executiveNote: text('executive_note').notNull().default(''),
   milestonesDefining: boolean('milestones_defining').notNull().default(false),
+  baselinedAt: timestamp('baselined_at', { withTimezone: true }),
   updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow(),
 })
 

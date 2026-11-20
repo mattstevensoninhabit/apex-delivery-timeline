@@ -73,16 +73,17 @@ function assignRows(items: { position: number }[]) {
   })
 }
 
-export function buildConsolidatedTimeline(projects: Project[], now = new Date()): ConsolidatedTimeline {
+export type Axis = {
+  ticks: AxisTick[]
+  months: AxisMonth[]
+  toPosition: (time: number) => number
+  todayPosition?: number
+  hasDated: boolean
+}
+
+export function buildAxis(allTimes: number[], now = new Date()): Axis {
   const today = startOfDay(now).getTime()
-
-  const allTimes = projects.flatMap((project) => {
-    const times = project.milestones.map((m) => timeOf(m.date))
-    if (project.finalMilestone) times.push(timeOf(project.finalMilestone.date))
-    return times.filter((t): t is number => t !== undefined)
-  })
   const hasDated = allTimes.length > 0
-
   const earliest = hasDated ? Math.min(...allTimes) : today
   const latest = hasDated ? Math.max(...allTimes) : today
   const start = startOfWeek(new Date(earliest - PAD_DAYS * DAY_MS)).getTime()
@@ -106,6 +107,25 @@ export function buildConsolidatedTimeline(projects: Project[], now = new Date())
   if (months.length > 1 && months[1].position - months[0].position < MONTH_LABEL_GAP_PERCENT) {
     months.shift()
   }
+
+  return {
+    ticks,
+    months,
+    toPosition,
+    todayPosition: today >= start && today <= end ? toPosition(today) : undefined,
+    hasDated,
+  }
+}
+
+export function buildConsolidatedTimeline(projects: Project[], now = new Date()): ConsolidatedTimeline {
+  const today = startOfDay(now).getTime()
+
+  const allTimes = projects.flatMap((project) => {
+    const times = project.milestones.map((m) => timeOf(m.date))
+    if (project.finalMilestone) times.push(timeOf(project.finalMilestone.date))
+    return times.filter((t): t is number => t !== undefined)
+  })
+  const { ticks, months, toPosition, todayPosition, hasDated } = buildAxis(allTimes, now)
 
   const lanes: Lane[] = projects.map((project, index) => {
     const datedRaw = project.milestones
@@ -167,7 +187,7 @@ export function buildConsolidatedTimeline(projects: Project[], now = new Date())
     lanes,
     ticks,
     months,
-    todayPosition: today >= start && today <= end ? toPosition(today) : undefined,
+    todayPosition,
     hasDated,
     monthGroups,
   }
