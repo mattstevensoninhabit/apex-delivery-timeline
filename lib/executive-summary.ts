@@ -10,7 +10,14 @@ import {
   type DeliveryStatus,
 } from './schedule'
 import { formatMilestoneDate, parseIsoDate } from './dates'
-import { buildExecutiveProject, type ExecutiveProject, type KeyStatus } from './executive-view'
+import {
+  buildExecutiveProject,
+  stationRows,
+  type ExecutiveProject,
+  type KeyMilestone,
+  type KeyStatus,
+  type StationRow,
+} from './executive-view'
 import { MILESTONE_STATUSES, isOpenMilestone, type Milestone, type MilestoneStatus, type Project } from './milestones'
 
 type Rgb = [number, number, number]
@@ -667,11 +674,23 @@ class SummaryWriter {
       return
     }
 
-    const colW = this.contentWidth / n
+    const { rows, perRow } = stationRows(milestones)
+    const colW = this.contentWidth / perRow
+    rows.forEach((row, r) => this.stationRow(summary, row, colW, n, todayIndex, r === 0 ? headingH : 0))
+  }
+
+  private stationRow(
+    summary: ExecutiveProject,
+    row: StationRow<KeyMilestone>,
+    colW: number,
+    n: number,
+    todayIndex: number,
+    headingH: number,
+  ) {
     this.pdf.setFont('helvetica', 'bold')
     this.pdf.setFontSize(8.5)
-    const columns = milestones.map((m) => {
-      const titleLines = this.wrap(m.isFinal ? m.title.toUpperCase() : m.title, colW - 8, 2)
+    const columns = row.items.map((m) => {
+      const titleLines = this.wrap(m.isFinal ? m.title.toUpperCase() : m.title, colW - 10, 3)
       const showPlan = Boolean(m.baseline && m.baseline !== m.forecast)
       const showDrift = m.drift.kind !== 'unlocked'
       const textH = titleLines.length * 10 + 11 + (showPlan ? 10 : 0) + (showDrift ? 11 : 0)
@@ -685,7 +704,7 @@ class SummaryWriter {
     const total = headingH + tagSpace + labelH + iconH + 12 + maxText + 12
     this.ensure(total)
 
-    if (heading) this.stationHeading(summary)
+    if (headingH) this.stationHeading(summary)
     const stripTop = this.y + headingH
     const labelY = stripTop + tagSpace + 8
     const trackY = labelY + 6 + iconH / 2
@@ -693,17 +712,20 @@ class SummaryWriter {
     const bottom = textTop + maxText
 
     columns.forEach(({ m }, i) => {
-      const cx = PAGE_MARGIN + colW * i + colW / 2
+      const index = row.start + i
       const left = PAGE_MARGIN + colW * i
+      const cx = left + colW / 2
       const right = left + colW
       this.color(m.status === 'delivered' ? BLUE : RULE, 'fill')
-      const segStart = i === 0 ? cx : left
-      const segEnd = i === n - 1 ? cx : right
+      const segStart = index === 0 ? cx : left
+      const segEnd = index === n - 1 ? cx : right
       if (segEnd > segStart) this.pdf.rect(segStart, trackY - 2, segEnd - segStart, 4, 'F')
     })
 
-    if (todayIndex >= 0 && todayIndex <= n) {
-      const x = PAGE_MARGIN + colW * todayIndex
+    const localToday = todayIndex - row.start
+    const isLastRow = row.start + row.items.length === n
+    if (localToday >= 0 && (localToday < row.items.length || (isLastRow && localToday === row.items.length))) {
+      const x = PAGE_MARGIN + colW * localToday
       this.color(TODAY_RED, 'draw')
       this.pdf.setLineWidth(1)
       this.pdf.line(x, stripTop + 11, x, bottom - 4)

@@ -5,6 +5,7 @@ import { TimelineExport } from '@/components/timeline-export'
 import {
   buildExecutiveProject,
   buildPortfolio,
+  stationRows,
   type Drift,
   type ExecutiveProject,
   type KeyMilestone,
@@ -326,18 +327,50 @@ function MilestoneStations({
   label: string
 }) {
   const { milestones, todayIndex } = summary
+  const { rows, perRow } = stationRows(milestones)
   return (
-    <ol
-      className={cn('hidden md:grid', compact ? 'pt-5' : 'pt-6')}
-      style={{ gridTemplateColumns: `repeat(${milestones.length}, minmax(0, 1fr))` }}
-      aria-label={label}
-    >
-      {milestones.map((m, index) => {
-        const reached = m.status === 'delivered'
-        return (
-          <li key={m.key} className={cn('relative flex flex-col items-center px-2', compact ? 'gap-2.5 pb-1' : 'gap-3')}>
+    <div className={cn('hidden flex-col md:flex', compact ? 'gap-8' : 'gap-10')} role="group" aria-label={label}>
+      {rows.map((row) => (
+        <ol
+          key={row.start}
+          className={cn('grid', compact ? 'pt-5' : 'pt-6')}
+          style={{ gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))` }}
+        >
+          {row.items.map((m, offset) => (
+            <StationItem
+              key={m.key}
+              m={m}
+              index={row.start + offset}
+              total={milestones.length}
+              todayIndex={todayIndex}
+              compact={compact}
+            />
+          ))}
+        </ol>
+      ))}
+    </div>
+  )
+}
+
+function StationItem({
+  m,
+  index,
+  total,
+  todayIndex,
+  compact,
+}: {
+  m: KeyMilestone
+  index: number
+  total: number
+  todayIndex: number
+  compact: boolean
+}) {
+  const reached = m.status === 'delivered'
+  const isLast = index === total - 1
+  return (
+          <li className={cn('relative flex min-w-0 flex-col items-center px-2', compact ? 'gap-2.5 pb-1' : 'gap-3')}>
             {index === todayIndex && <TodayPin side="left" />}
-            {index === milestones.length - 1 && todayIndex === milestones.length && <TodayPin side="right" />}
+            {isLast && todayIndex === total && <TodayPin side="right" />}
             <span className="sr-only">{stationLabel(m)}</span>
             <span
               aria-hidden="true"
@@ -353,7 +386,7 @@ function MilestoneStations({
                 className={cn(
                   'absolute top-1/2 h-1.5 -translate-y-1/2',
                   index === 0 ? 'left-1/2' : 'left-0',
-                  index === milestones.length - 1 ? 'right-1/2' : 'right-0',
+                  isLast ? 'right-1/2' : 'right-0',
                   reached ? 'bg-primary' : 'bg-border',
                 )}
               />
@@ -377,9 +410,6 @@ function MilestoneStations({
               <DriftChip drift={m.drift} />
             </div>
           </li>
-        )
-      })}
-    </ol>
   )
 }
 

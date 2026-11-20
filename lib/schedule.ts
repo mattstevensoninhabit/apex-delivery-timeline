@@ -59,29 +59,12 @@ export function nextOpenMilestone(project: Project, today: number): Milestone | 
 }
 
 export function executiveMilestones(project: Project, today: number, cap = MAX_EXECUTIVE_MILESTONES): Milestone[] {
-  const next = nextOpenMilestone(project, today)
   const flagged = project.milestones.filter((m) => m.executive)
-  const chosen = new Map<number, Milestone>()
-  if (next) chosen.set(next.id, next)
+  if (flagged.length === 0) return project.milestones.filter((m) => m.status !== 'deferred')
 
-  if (flagged.length > 0) {
-    for (const m of flagged) if (chosen.size < cap) chosen.set(m.id, m)
-  } else {
-    for (const m of project.milestones) {
-      if (chosen.size >= cap) break
-      if (m.status === 'in-progress' || m.status === 'at-risk') chosen.set(m.id, m)
-    }
-    const rest = project.milestones.filter((m) => !chosen.has(m.id) && m.status !== 'deferred')
-    const slots = cap - chosen.size
-    if (slots > 0 && rest.length > 0) {
-      const step = rest.length / slots
-      for (let i = 0; i < slots && i < rest.length; i++) {
-        const pick = rest[Math.min(rest.length - 1, Math.floor(i * step + step / 2))]
-        chosen.set(pick.id, pick)
-      }
-    }
-  }
-
+  const chosen = new Set(flagged.slice(0, cap).map((m) => m.id))
+  const next = nextOpenMilestone(project, today)
+  if (next) chosen.add(next.id)
   return project.milestones.filter((m) => chosen.has(m.id))
 }
 
