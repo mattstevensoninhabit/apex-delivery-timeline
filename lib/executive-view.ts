@@ -38,6 +38,21 @@ export type ExecutiveProject = {
   todayIndex: number
 }
 
+export const MAX_STATIONS_PER_ROW = 6
+
+export type StationRow<T> = { items: T[]; start: number }
+
+/** Splits stations into balanced rows so long plans wrap instead of squeezing labels. */
+export function stationRows<T>(items: T[], max = MAX_STATIONS_PER_ROW): { rows: StationRow<T>[]; perRow: number } {
+  if (items.length === 0) return { rows: [], perRow: 0 }
+  const perRow = Math.ceil(items.length / Math.ceil(items.length / max))
+  const rows: StationRow<T>[] = []
+  for (let start = 0; start < items.length; start += perRow) {
+    rows.push({ items: items.slice(start, start + perRow), start })
+  }
+  return { rows, perRow }
+}
+
 function timeOf(value: string | undefined) {
   return value ? parseIsoDate(value)?.getTime() : undefined
 }
