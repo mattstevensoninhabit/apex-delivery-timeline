@@ -10,6 +10,7 @@ import {
   type DeliveryStatus,
 } from './schedule'
 import { formatMilestoneDate, parseIsoDate } from './dates'
+import { buildExecutiveProject, type ExecutiveProject, type KeyStatus } from './executive-view'
 import { MILESTONE_STATUSES, isOpenMilestone, type Milestone, type MilestoneStatus, type Project } from './milestones'
 
 type Rgb = [number, number, number]
@@ -115,6 +116,33 @@ function toPdfText(value: string) {
 function dateText(value: string) {
   const formatted = formatMilestoneDate(value)
   return formatted || 'TBC'
+}
+
+const STATION_LABEL: Record<KeyStatus, string> = {
+  delivered: 'Complete',
+  'in-progress': 'In progress',
+  'at-risk': 'At risk',
+  'not-started': 'Planned',
+  deferred: 'Deferred',
+  final: 'Go-live',
+}
+
+function deliveryPill(summary: ExecutiveProject): { label: string; color: Rgb; outline?: boolean } {
+  const { delivery, project } = summary
+  const days = (n: number) => `${n} day${n === 1 ? '' : 's'}`
+  if (project.milestonesDefining || project.milestones.length === 0) return { label: 'Being defined', color: MUTED }
+  switch (delivery.kind) {
+    case 'behind':
+      return { label: `${days(delivery.days)} behind`, color: TODAY_RED }
+    case 'ahead':
+      return { label: `${days(delivery.days)} ahead`, color: GREEN }
+    case 'on-schedule':
+      return { label: 'On plan', color: BLUE }
+    case 'tbc':
+      return { label: 'Go-live TBC', color: MUTED }
+    default:
+      return { label: 'Plan not locked', color: MUTED, outline: true }
+  }
 }
 
 function nextMilestone(project: Project, today: number): Milestone | undefined {
@@ -540,6 +568,280 @@ class SummaryWriter {
     this.y = lanesBottom + 16
     this.drawLegend(timeline.todayPosition !== undefined)
     this.y += legendHeight - 2
+  }
+
+  private centeredText(text: string, x: number, y: number, charSpace = 0) {
+    const clean = toPdfText(text)
+    this.pdf.text(clean, x - this.measure(clean, charSpace) / 2 + charSpace / 2, y, { charSpace })
+  }
+
+  private drawStationIcon(x: number, y: number, status: KeyStatus, r = 11) {
+    this.pdf.setLineDashPattern([], 0)
+    this.pdf.setLineWidth(r > 7 ? 1.6 : 1.1)
+    const white: Rgb = [255, 255, 255]
+    switch (status) {
+      case 'delivered': {
+        this.color(BLUE, 'fill')
+        this.color(BLUE, 'draw')
+        this.pdf.circle(x, y, r, 'FD')
+        this.color(white, 'draw')
+        this.pdf.setLineWidth(r * 0.17)
+        this.pdf.lines(
+          [
+            [r * 0.28, r * 0.28],
+            [r * 0.5, -r * 0.6],
+          ],
+          x - r * 0.4,
+          y,
+        )
+        break
+      }
+      case 'in-progress': {
+        this.pdf.setFillColor(255, 255, 255)
+        this.color(BLUE, 'draw')
+        this.pdf.circle(x, y, r, 'FD')
+        this.pdf.setLineWidth(r * 0.1)
+        this.pdf.circle(x, y, r * 0.5, 'S')
+        this.pdf.line(x, y, x, y - r * 0.3)
+        this.pdf.line(x, y, x + r * 0.22, y + r * 0.12)
+        break
+      }
+      case 'at-risk': {
+        this.color(AMBER, 'fill')
+        this.color(AMBER, 'draw')
+        this.pdf.circle(x, y, r, 'FD')
+        this.pdf.setFont('helvetica', 'bold')
+        this.pdf.setFontSize(r * 1.2)
+        this.pdf.setTextColor(255, 255, 255)
+        this.centeredText('!', x, y + r * 0.42)
+        break
+      }
+      case 'deferred': {
+        this.pdf.setFillColor(255, 255, 255)
+        this.color(MUTED, 'draw')
+        this.pdf.setLineDashPattern([2, 1.5], 0)
+        this.pdf.circle(x, y, r, 'FD')
+        this.pdf.setLineDashPattern([], 0)
+        break
+      }
+      case 'final': {
+        this.color(NAVY, 'fill')
+        this.color(NAVY, 'draw')
+        this.pdf.circle(x, y, r, 'FD')
+        this.color(white, 'draw')
+        this.color(white, 'fill')
+        this.pdf.setLineWidth(r * 0.12)
+        const poleX = x - r * 0.3
+        this.pdf.line(poleX, y - r * 0.45, poleX, y + r * 0.5)
+        this.pdf.triangle(poleX, y - r * 0.45, poleX + r * 0.65, y - r * 0.2, poleX, y + r * 0.05, 'F')
+        break
+      }
+      default: {
+        this.pdf.setFillColor(255, 255, 255)
+        this.color(RULE, 'draw')
+        this.pdf.circle(x, y, r, 'FD')
+      }
+    }
+  }
+
+  private drawTodayTag(x: number, y: number) {
+    this.color(TODAY_RED, 'fill')
+    this.pdf.roundedRect(x - 15, y, 30, 11, 2, 2, 'F')
+    this.pdf.setFont('helvetica', 'bold')
+    this.pdf.setFontSize(6)
+    this.pdf.setTextColor(255, 255, 255)
+    this.pdf.text('TODAY', x, y + 7.8, { align: 'center', charSpace: 0.4 })
+  }
+
+  stations(summary: ExecutiveProject, { heading = false }: { heading?: boolean } = {}) {
+    const { milestones, todayIndex } = summary
+    const n = milestones.length
+    const headingH = heading ? 34 : 0
+    if (n === 0 || !milestones.some((m) => m.forecast)) {
+      if (heading) {
+        this.ensure(headingH + 24)
+        this.stationHeading(summary)
+        this.y += headingH
+      }
+      this.note(n === 0 ? 'Milestones being defined.' : 'Dates to be confirmed.')
+      return
+    }
+
+    const colW = this.contentWidth / n
+    this.pdf.setFont('helvetica', 'bold')
+    this.pdf.setFontSize(8.5)
+    const columns = milestones.map((m) => {
+      const titleLines = this.wrap(m.isFinal ? m.title.toUpperCase() : m.title, colW - 8, 2)
+      const showPlan = Boolean(m.baseline && m.baseline !== m.forecast)
+      const showDrift = m.drift.kind !== 'unlocked'
+      const textH = titleLines.length * 10 + 11 + (showPlan ? 10 : 0) + (showDrift ? 11 : 0)
+      return { m, titleLines, showPlan, showDrift, textH }
+    })
+    const maxText = Math.max(...columns.map((c) => c.textH))
+
+    const tagSpace = 14
+    const labelH = 14
+    const iconH = 24
+    const total = headingH + tagSpace + labelH + iconH + 12 + maxText + 12
+    this.ensure(total)
+
+    if (heading) this.stationHeading(summary)
+    const stripTop = this.y + headingH
+    const labelY = stripTop + tagSpace + 8
+    const trackY = labelY + 6 + iconH / 2
+    const textTop = trackY + iconH / 2 + 12
+    const bottom = textTop + maxText
+
+    columns.forEach(({ m }, i) => {
+      const cx = PAGE_MARGIN + colW * i + colW / 2
+      const left = PAGE_MARGIN + colW * i
+      const right = left + colW
+      this.color(m.status === 'delivered' ? BLUE : RULE, 'fill')
+      const segStart = i === 0 ? cx : left
+      const segEnd = i === n - 1 ? cx : right
+      if (segEnd > segStart) this.pdf.rect(segStart, trackY - 2, segEnd - segStart, 4, 'F')
+    })
+
+    if (todayIndex >= 0 && todayIndex <= n) {
+      const x = PAGE_MARGIN + colW * todayIndex
+      this.color(TODAY_RED, 'draw')
+      this.pdf.setLineWidth(1)
+      this.pdf.line(x, stripTop + 11, x, bottom - 4)
+      const tagX = Math.min(Math.max(x, PAGE_MARGIN + 15), PAGE_MARGIN + this.contentWidth - 15)
+      this.drawTodayTag(tagX, stripTop)
+    }
+
+    columns.forEach(({ m, titleLines, showPlan, showDrift }, i) => {
+      const cx = PAGE_MARGIN + colW * i + colW / 2
+
+      this.pdf.setFont('helvetica', 'bold')
+      this.pdf.setFontSize(7)
+      this.color(m.status === 'delivered' ? BLUE : m.status === 'at-risk' ? AMBER : MUTED, 'text')
+      this.centeredText(STATION_LABEL[m.status].toUpperCase(), cx, labelY, 1)
+
+      this.drawStationIcon(cx, trackY, m.status)
+
+      let ty = textTop
+      this.pdf.setFont('helvetica', 'bold')
+      this.pdf.setFontSize(8.5)
+      this.color(NAVY, 'text')
+      for (const line of titleLines) {
+        this.centeredText(line, cx, ty)
+        ty += 10
+      }
+
+      this.pdf.setFont('helvetica', 'normal')
+      this.pdf.setFontSize(8)
+      this.color(MUTED, 'text')
+      this.centeredText(m.forecast ? formatMilestoneDate(m.forecast) : 'TBC', cx, ty + 1)
+      ty += 11
+
+      if (showPlan && m.baseline) {
+        this.pdf.setFontSize(7)
+        const planText = toPdfText(`Plan ${formatMilestoneDate(m.baseline)}`)
+        const w = this.measure(planText)
+        this.centeredText(planText, cx, ty + 1)
+        this.color(MUTED, 'draw')
+        this.pdf.setLineWidth(0.5)
+        this.pdf.line(cx - w / 2, ty - 1.5, cx + w / 2, ty - 1.5)
+        ty += 10
+      }
+
+      if (showDrift) {
+        this.pdf.setFont('helvetica', 'bold')
+        this.pdf.setFontSize(7)
+        const drift = m.drift
+        const text =
+          drift.kind === 'ahead' ? `${drift.days}d ahead` : drift.kind === 'behind' ? `${drift.days}d behind` : 'On plan'
+        this.color(drift.kind === 'ahead' ? GREEN : drift.kind === 'behind' ? TODAY_RED : BLUE, 'text')
+        this.centeredText(text.toUpperCase(), cx, ty + 2, 0.4)
+      }
+    })
+
+    this.y = bottom + 12
+  }
+
+  private stationHeading(summary: ExecutiveProject) {
+    const top = this.y
+    const { label, color, outline } = deliveryPill(summary)
+    const final = summary.milestones.find((m) => m.isFinal)
+    const goLive = toPdfText(`Go-live ${final?.forecast ? formatMilestoneDate(final.forecast) : 'TBC'}`)
+
+    this.pdf.setFont('helvetica', 'normal')
+    this.pdf.setFontSize(8.5)
+    const goLiveW = this.measure(goLive)
+    const rightEdge = PAGE_MARGIN + this.contentWidth
+    this.color(MUTED, 'text')
+    this.pdf.text(goLive, rightEdge - goLiveW, top + 12)
+
+    this.pdf.setFont('helvetica', 'bold')
+    this.pdf.setFontSize(7)
+    const pillText = toPdfText(label.toUpperCase())
+    const pillW = this.measure(pillText, 0.6) + 14
+    const pillX = rightEdge - goLiveW - 10 - pillW
+    if (outline) {
+      this.color(color, 'draw')
+      this.pdf.setLineWidth(0.75)
+      this.pdf.setLineDashPattern([2, 1.5], 0)
+      this.pdf.roundedRect(pillX, top + 3, pillW, 13, 6.5, 6.5, 'S')
+      this.pdf.setLineDashPattern([], 0)
+      this.color(color, 'text')
+    } else {
+      this.color(color, 'fill')
+      this.pdf.roundedRect(pillX, top + 3, pillW, 13, 6.5, 6.5, 'F')
+      this.pdf.setTextColor(255, 255, 255)
+    }
+    this.pdf.text(pillText, pillX + 7, top + 12, { charSpace: 0.6 })
+
+    this.pdf.setFont('helvetica', 'bold')
+    this.pdf.setFontSize(11)
+    this.color(NAVY, 'text')
+    this.pdf.text(this.truncate(summary.project.tabLabel, pillX - PAGE_MARGIN - 12), PAGE_MARGIN, top + 13)
+
+    this.color(RULE, 'draw')
+    this.pdf.setLineWidth(0.5)
+    this.pdf.line(PAGE_MARGIN, top + 24, rightEdge, top + 24)
+  }
+
+  stationLegend(locked: boolean) {
+    this.ensure(40)
+    const items: { status?: KeyStatus; label: string }[] = [
+      { status: 'delivered', label: 'Complete' },
+      { status: 'in-progress', label: 'In progress' },
+      { status: 'at-risk', label: 'At risk' },
+      { status: 'not-started', label: 'Planned' },
+      { status: 'final', label: 'Go-live' },
+      { label: 'Today' },
+    ]
+    this.color(RULE, 'draw')
+    this.pdf.setLineWidth(0.5)
+    this.pdf.line(PAGE_MARGIN, this.y, PAGE_MARGIN + this.contentWidth, this.y)
+    const rowY = this.y + 14
+    let x = PAGE_MARGIN
+    for (const item of items) {
+      if (item.status) {
+        this.drawStationIcon(x + 5, rowY, item.status, 5)
+      } else {
+        this.color(TODAY_RED, 'fill')
+        this.pdf.rect(x + 4, rowY - 6, 1.5, 12, 'F')
+      }
+      this.pdf.setFont('helvetica', 'normal')
+      this.pdf.setFontSize(8)
+      this.color(MUTED, 'text')
+      this.pdf.text(item.label, x + 14, rowY + 2.8)
+      x += 14 + this.measure(item.label) + 16
+    }
+    this.pdf.setFontSize(7.5)
+    this.pdf.text(
+      toPdfText(
+        locked
+          ? 'Plan locked. Struck-through dates show the locked plan; chips show how far each milestone has moved.'
+          : 'Plan not locked yet. Ahead / behind tracking starts once the plan is locked in Admin.',
+      ),
+      PAGE_MARGIN,
+      rowY + 18,
+    )
+    this.y = rowY + 34
   }
 
   roadmap(projects: Project[], today: number) {
@@ -1208,7 +1510,11 @@ function writeProject(
 
   if (project.notes) writer.notesBlock(project.notes)
 
-  if (showTimeline) writer.timeline([project], { showLaneLabels: false })
+  if (showTimeline) {
+    const summary = buildExecutiveProject(project)
+    writer.stations(summary)
+    writer.stationLegend(summary.locked)
+  }
 
   writer.bulletList(
     'Current focus',
@@ -1270,9 +1576,14 @@ export async function downloadExecutiveSummary(
   if (isPortfolio) {
     writer.sectionTitle('Portfolio overview', 'At a glance')
     writer.overviewTable(projects, today)
-    writer.sectionTitle('Delivery roadmap', 'Schedule')
-    writer.roadmap(projects, today)
-    writer.space(16)
+    writer.sectionTitle('Key milestones', 'Schedule')
+    const summaries = projects.map((project) => buildExecutiveProject(project))
+    summaries.forEach((summary) => {
+      writer.stations(summary, { heading: true })
+      writer.space(6)
+    })
+    writer.stationLegend(summaries.some((s) => s.locked))
+    writer.space(10)
     projects.forEach((project, i) =>
       writeProject(writer, project, today, { eyebrow: `Project ${i + 1}`, showTimeline: false }),
     )
