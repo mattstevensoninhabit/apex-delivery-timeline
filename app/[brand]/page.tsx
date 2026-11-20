@@ -19,10 +19,20 @@ export async function generateMetadata({ params }: Params): Promise<Metadata> {
   }
 }
 
-export default async function Page({ params, searchParams }: Params & { searchParams: Promise<{ tab?: string }> }) {
-  const [{ brand: slug }, { tab }] = await Promise.all([params, searchParams])
+export default async function Page({
+  params,
+  searchParams,
+}: Params & { searchParams: Promise<{ tab?: string; view?: string }> }) {
+  const [{ brand: slug }, { tab, view }] = await Promise.all([params, searchParams])
   const brand = await getBrand(slug)
   if (!brand) notFound()
   const projects = await getProjects(brand.slug)
-  return <BrandPage brand={brand} projects={projects} initialTab={typeof tab === 'string' ? tab : undefined} />
+  return (
+    <BrandPage
+      brand={brand}
+      projects={projects}
+      initialTab={typeof tab === 'string' ? tab : undefined}
+      initialView={typeof view === 'string' ? view : undefined}
+    />
+  )
 }

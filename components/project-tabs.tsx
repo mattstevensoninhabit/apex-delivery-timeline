@@ -11,14 +11,39 @@ type Tab = {
   label: string
   description: string
   panel: ReactNode
+  executivePanel?: ReactNode
   header?: HeaderInfo
   style?: CSSProperties
 }
 
-export function ProjectTabs({ tabs, initialTab }: { tabs: Tab[]; initialTab?: string }) {
+type View = 'executive' | 'detailed'
+
+const VIEWS: { value: View; label: string }[] = [
+  { value: 'executive', label: 'Executive' },
+  { value: 'detailed', label: 'Detailed' },
+]
+
+export function ProjectTabs({
+  tabs,
+  initialTab,
+  initialView,
+}: {
+  tabs: Tab[]
+  initialTab?: string
+  initialView?: string
+}) {
   const [active, setActive] = useState(
     tabs.some((tab) => tab.slug === initialTab) ? initialTab : tabs[0]?.slug,
   )
+  const [view, setView] = useState<View>(initialView === 'detailed' ? 'detailed' : 'executive')
+
+  function selectView(next: View) {
+    setView(next)
+    const url = new URL(window.location.href)
+    if (next === 'executive') url.searchParams.delete('view')
+    else url.searchParams.set('view', next)
+    window.history.replaceState(window.history.state, '', url)
+  }
   const tabRefs = useRef<(HTMLButtonElement | null)[]>([])
   const activeTab = tabs.find((tab) => tab.slug === active) ?? tabs[0]
   const header = activeTab?.header ?? tabs[0]?.header
@@ -88,6 +113,34 @@ export function ProjectTabs({ tabs, initialTab }: { tabs: Tab[]; initialTab?: st
           )
         })}
       </div>
+      <div className="flex items-center justify-end gap-3">
+        <span id="view-toggle-label" className="text-xs font-bold uppercase tracking-widest text-muted-foreground">
+          View
+        </span>
+        <div
+          role="group"
+          aria-labelledby="view-toggle-label"
+          className="flex rounded-full border border-border bg-card/50 p-1"
+        >
+          {VIEWS.map((option) => {
+            const pressed = view === option.value
+            return (
+              <button
+                key={option.value}
+                type="button"
+                aria-pressed={pressed}
+                onClick={() => selectView(option.value)}
+                className={cn(
+                  'rounded-full px-4 py-1.5 text-sm font-bold transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                  pressed ? 'bg-primary text-primary-foreground' : 'text-muted-foreground hover:text-foreground',
+                )}
+              >
+                {option.label}
+              </button>
+            )
+          })}
+        </div>
+      </div>
       {tabs.map((tab) => (
         <div
           key={tab.slug}
@@ -96,7 +149,7 @@ export function ProjectTabs({ tabs, initialTab }: { tabs: Tab[]; initialTab?: st
           aria-labelledby={`tab-${tab.slug}`}
           hidden={tab.slug !== active}
         >
-          {tab.panel}
+          {view === 'executive' && tab.executivePanel ? tab.executivePanel : tab.panel}
         </div>
       ))}
     </div>

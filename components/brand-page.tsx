@@ -2,11 +2,22 @@ import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { ConsolidatedTimeline } from '@/components/consolidated-timeline'
 import { DeliveryTimeline } from '@/components/delivery-timeline'
+import { ExecutivePortfolioTimeline, ExecutiveProjectTimeline } from '@/components/executive-timeline'
 import { ProjectTabs } from '@/components/project-tabs'
 import { brandStyle, headerInfo, overrideStyle, pdfBranding, resolveBranding, type Brand } from '@/lib/branding'
 import type { Project } from '@/lib/milestones'
 
-export function BrandPage({ brand, projects, initialTab }: { brand: Brand; projects: Project[]; initialTab?: string }) {
+export function BrandPage({
+  brand,
+  projects,
+  initialTab,
+  initialView,
+}: {
+  brand: Brand
+  projects: Project[]
+  initialTab?: string
+  initialView?: string
+}) {
   const brandBranding = resolveBranding(brand)
 
   return (
@@ -21,6 +32,7 @@ export function BrandPage({ brand, projects, initialTab }: { brand: Brand; proje
         </Link>
         <ProjectTabs
           initialTab={initialTab}
+          initialView={initialView}
           tabs={[
             {
               slug: 'all',
@@ -36,6 +48,14 @@ export function BrandPage({ brand, projects, initialTab }: { brand: Brand; proje
                   branding={pdfBranding(brandBranding)}
                 />
               ),
+              executivePanel: (
+                <ExecutivePortfolioTimeline
+                  projects={projects}
+                  lead={brand.headerLead || brand.name}
+                  fileName={`${brand.slug}-executive-timeline`}
+                  branding={pdfBranding(brandBranding)}
+                />
+              ),
             },
             ...projects.map((project, index) => {
               const branding = resolveBranding(brand, project)
@@ -47,6 +67,7 @@ export function BrandPage({ brand, projects, initialTab }: { brand: Brand; proje
                 header: headerInfo(branding),
                 style: overrideStyle(brand, project),
                 panel: <DeliveryTimeline project={project} branding={pdfBranding(branding)} />,
+                executivePanel: <ExecutiveProjectTimeline project={project} branding={pdfBranding(branding)} />,
               }
             }),
           ]}
