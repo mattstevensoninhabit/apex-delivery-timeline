@@ -299,18 +299,43 @@ function stationLabel(m: KeyMilestone) {
   return `${m.isFinal ? 'Go-live: ' : ''}${m.title}, ${shortDate(m.forecast)}, ${STATUS_TEXT[m.status]}${drift}`
 }
 
-function MilestoneStations({ summary }: { summary: ExecutiveProject }) {
+export function ExecutiveStations({
+  summary,
+  compact = false,
+  label = 'Key milestones',
+}: {
+  summary: ExecutiveProject
+  compact?: boolean
+  label?: string
+}) {
+  return (
+    <>
+      <MilestoneStations summary={summary} compact={compact} label={label} />
+      <MilestoneStationsMobile summary={summary} label={label} />
+    </>
+  )
+}
+
+function MilestoneStations({
+  summary,
+  compact,
+  label,
+}: {
+  summary: ExecutiveProject
+  compact: boolean
+  label: string
+}) {
   const { milestones, todayIndex } = summary
   return (
     <ol
-      className="hidden pt-6 md:grid"
+      className={cn('hidden md:grid', compact ? 'pt-5' : 'pt-6')}
       style={{ gridTemplateColumns: `repeat(${milestones.length}, minmax(0, 1fr))` }}
-      aria-label="Key milestones"
+      aria-label={label}
     >
       {milestones.map((m, index) => {
         const reached = m.status === 'delivered'
         return (
-          <li key={m.key} className="relative flex flex-col items-center gap-3 px-2">
+          <li key={m.key} className={cn('relative flex flex-col items-center px-2', compact ? 'gap-2.5 pb-1' : 'gap-3')}>
             {index === todayIndex && <TodayPin side="left" />}
             {index === milestones.length - 1 && todayIndex === milestones.length && <TodayPin side="right" />}
             <span className="sr-only">{stationLabel(m)}</span>
@@ -332,7 +357,7 @@ function MilestoneStations({ summary }: { summary: ExecutiveProject }) {
                   reached ? 'bg-primary' : 'bg-border',
                 )}
               />
-              <StatusIcon status={m.status} size="lg" />
+              <StatusIcon status={m.status} size={compact ? 'md' : 'lg'} />
             </div>
             <div aria-hidden="true" className="flex flex-col items-center gap-1.5 text-center">
               <span
@@ -358,9 +383,9 @@ function MilestoneStations({ summary }: { summary: ExecutiveProject }) {
   )
 }
 
-function MilestoneStationsMobile({ summary }: { summary: ExecutiveProject }) {
+function MilestoneStationsMobile({ summary, label }: { summary: ExecutiveProject; label: string }) {
   return (
-    <ol className="flex flex-col md:hidden" aria-label="Key milestones">
+    <ol className="flex flex-col md:hidden" aria-label={label}>
       {summary.milestones.map((m, index) => (
         <li key={m.key} className="flex flex-col">
           {index === summary.todayIndex && <MobileTodayRule />}
@@ -430,8 +455,7 @@ export function ExecutiveProjectTimeline({ project, branding }: { project: Proje
               {project.executiveNote}
             </p>
           ) : null}
-          <MilestoneStations summary={summary} />
-          <MilestoneStationsMobile summary={summary} />
+          <ExecutiveStations summary={summary} />
           <ExecutiveLegend locked={summary.locked} />
         </>
       ) : (
@@ -448,214 +472,46 @@ export function ExecutiveProjectTimeline({ project, branding }: { project: Proje
 
 /* ---------------------------------- Consolidated ---------------------------------- */
 
-const TRACK_Y = 22
-const LABEL_TOP = 44
-const LABEL_ROW_H = 44
-const ROW_BOTTOM_PAD = 12
-
-function labelAlign(position: number) {
-  if (position > 85) return 'right'
-  if (position < 15) return 'left'
-  return 'center'
-}
-
-function DriftBar({ from, to, drift }: { from: number; to: number; drift: Drift }) {
-  if (drift.kind !== 'ahead' && drift.kind !== 'behind') return null
-  const left = Math.min(from, to)
-  const width = Math.abs(to - from)
+function PortfolioProjectStrip({ row }: { row: PortfolioRow }) {
+  const final = row.milestones.find((m) => m.isFinal)
+  const titleId = `exec-strip-${row.project.slug}`
+  const hasDates = row.milestones.some((m) => m.forecast)
   return (
-    <span
-      aria-hidden="true"
-      className={cn('absolute h-1.5 -translate-y-1/2 rounded-full', drift.kind === 'ahead' ? 'bg-ahead' : 'bg-today')}
-      style={{ left: `${left}%`, width: `${width}%`, top: TRACK_Y }}
-    />
-  )
-}
-
-function PortfolioMarker({ m, projectLabel }: { m: PortfolioRow['plotted'][number]; projectLabel: string }) {
-  const align = labelAlign(m.position)
-  const labelTop = LABEL_TOP + m.labelRow * LABEL_ROW_H
-  const showGhost = m.baselinePosition !== undefined && Math.abs(m.baselinePosition - m.position) > 0.01
-  return (
-    <>
-      {showGhost && (
-        <>
-          <DriftBar from={m.baselinePosition!} to={m.position} drift={m.drift} />
-          <span
-            aria-hidden="true"
-            className="absolute size-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-dashed border-muted-foreground bg-background"
-            style={{ left: `${m.baselinePosition}%`, top: TRACK_Y }}
-          />
-        </>
-      )}
-      <span className="absolute z-10 -translate-x-1/2 -translate-y-1/2" style={{ left: `${m.position}%`, top: TRACK_Y }}>
-        <StatusIcon status={m.status} size="sm" />
-      </span>
-      {m.labelRow > 0 && (
-        <span
-          aria-hidden="true"
-          className="absolute w-px bg-border"
-          style={{ left: `${m.position}%`, top: TRACK_Y + 12, height: labelTop - TRACK_Y - 14 }}
-        />
-      )}
-      <span
-        className={cn(
-          'absolute flex w-28 flex-col gap-0.5',
-          align === 'center' && '-translate-x-1/2 items-center text-center',
-          align === 'right' && '-translate-x-full items-end text-right',
-          align === 'left' && 'items-start text-left',
-        )}
-        style={{ left: `${m.position}%`, top: labelTop }}
+    <li>
+      <article
+        aria-labelledby={titleId}
+        className="flex flex-col gap-4 rounded-2xl border border-border bg-background/80 p-5 md:p-6"
       >
-        <span className="sr-only">{`${projectLabel}: `}</span>
-        <span className={cn('line-clamp-1 text-xs font-bold leading-tight text-foreground', m.isFinal && 'uppercase')}>
-          {m.title}
-        </span>
-        <span className="flex items-center gap-1 text-[11px] leading-tight text-muted-foreground">
-          {shortDate(m.forecast)}
-          <span className="sr-only">{`, ${STATUS_TEXT[m.status]}`}</span>
-          {(m.drift.kind === 'ahead' || m.drift.kind === 'behind') && (
-            <span className={cn('font-bold', m.drift.kind === 'ahead' ? 'text-ahead' : 'text-today')}>
-              {m.drift.kind === 'ahead' ? `−${m.drift.days}d` : `+${m.drift.days}d`}
-              <span className="sr-only">{m.drift.kind === 'ahead' ? ' ahead of plan' : ' behind plan'}</span>
-            </span>
-          )}
-        </span>
-      </span>
-    </>
-  )
-}
-
-function PortfolioChart({ portfolio }: { portfolio: ReturnType<typeof buildPortfolio> }) {
-  const { rows, axis } = portfolio
-  return (
-    <div className="hidden md:block">
-      <div className="grid grid-cols-[13rem_minmax(0,1fr)_9rem]">
-        <div />
-        <div className="relative h-14 border-b-2 border-foreground" aria-hidden="true">
-          {axis.months.map((month) => (
-            <span
-              key={month.label}
-              className="absolute bottom-1.5 whitespace-nowrap border-l-2 border-foreground pl-1.5 text-xs font-bold uppercase tracking-wider text-foreground"
-              style={{ left: `${month.position}%` }}
-            >
-              {month.label}
-            </span>
-          ))}
-          {axis.todayPosition !== undefined && (
-            <span
-              className="absolute top-0 z-20 -translate-x-1/2 rounded-sm bg-today px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-background"
-              style={{ left: `${axis.todayPosition}%` }}
-            >
-              Today
-            </span>
-          )}
-        </div>
-        <div className="flex items-end border-b-2 border-foreground pb-1.5 pl-4 text-xs font-bold uppercase tracking-wider text-muted-foreground">
-          Go-live
-        </div>
-
-        {rows.map((row) => {
-          const height = LABEL_TOP + row.labelRows * LABEL_ROW_H + ROW_BOTTOM_PAD
-          const final = row.milestones.find((m) => m.isFinal)
-          return (
-            <div key={row.project.slug} className="contents">
-              <div className="flex flex-col gap-2 border-b border-border py-4 pr-4">
-                <span className="text-base font-bold leading-tight text-foreground">{row.project.tabLabel}</span>
-                <DeliveryBadge summary={row} />
-              </div>
-              <div className="relative border-b border-border" style={{ height }}>
-                {axis.months.map((month) => (
-                  <span
-                    key={month.label}
-                    aria-hidden="true"
-                    className="absolute inset-y-0 w-px bg-border/60"
-                    style={{ left: `${month.position}%` }}
-                  />
-                ))}
-                {axis.todayPosition !== undefined && (
-                  <span
-                    aria-hidden="true"
-                    className="absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 bg-today"
-                    style={{ left: `${axis.todayPosition}%` }}
-                  />
-                )}
-                {row.plotted.length === 0 ? (
-                  <p className="absolute inset-x-4 text-sm text-muted-foreground" style={{ top: TRACK_Y - 10 }}>
-                    {row.milestones.length === 0 ? 'Milestones being defined' : 'Dates to be confirmed'}
-                  </p>
-                ) : (
-                  <>
-                    <span
-                      aria-hidden="true"
-                      className="absolute h-1 -translate-y-1/2 rounded-full bg-border"
-                      style={{
-                        top: TRACK_Y,
-                        left: `${row.plotted[0].position}%`,
-                        width: `${row.plotted[row.plotted.length - 1].position - row.plotted[0].position}%`,
-                      }}
-                    />
-                    <ol aria-label={`${row.project.tabLabel} key milestones`}>
-                      {row.plotted.map((m) => (
-                        <li key={m.key}>
-                          <PortfolioMarker m={m} projectLabel={row.project.tabLabel} />
-                        </li>
-                      ))}
-                    </ol>
-                  </>
-                )}
-              </div>
-              <div className="flex flex-col justify-center gap-1.5 border-b border-border pl-4">
-                {final ? (
-                  <>
-                    <span className="text-sm font-bold text-foreground">{shortDate(final.forecast)}</span>
-                    <DriftChip drift={final.drift} className="self-start" />
-                  </>
-                ) : (
-                  <span className="text-sm text-muted-foreground">TBC</span>
-                )}
-                {row.unscheduled.filter((m) => !m.isFinal).length > 0 && (
-                  <span className="text-xs text-muted-foreground">
-                    {`${row.unscheduled.filter((m) => !m.isFinal).length} undated`}
-                  </span>
-                )}
-              </div>
-            </div>
-          )
-        })}
-      </div>
-    </div>
-  )
-}
-
-function PortfolioMobile({ rows }: { rows: PortfolioRow[] }) {
-  return (
-    <ul className="flex flex-col gap-4 md:hidden">
-      {rows.map((row) => (
-        <li key={row.project.slug} className="flex flex-col gap-3 rounded-xl border border-border bg-background/80 p-4">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-base font-bold text-foreground">{row.project.tabLabel}</span>
-            <DeliveryBadge summary={row} />
+        <header className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+          <div className="flex min-w-0 flex-col gap-1">
+            <h3 id={titleId} className="text-lg font-bold leading-tight text-foreground">
+              {row.project.tabLabel}
+            </h3>
+            {row.project.tabDescription ? (
+              <p className="text-pretty text-sm leading-relaxed text-muted-foreground">{row.project.tabDescription}</p>
+            ) : null}
           </div>
-          {row.milestones.length === 0 ? (
-            <span className="text-sm text-muted-foreground">Milestones being defined</span>
-          ) : (
-            <ol className="flex flex-col gap-2.5">
-              {row.milestones.map((m) => (
-                <li key={m.key} className="flex items-center gap-3">
-                  <StatusIcon status={m.status} size="sm" />
-                  <span className="flex min-w-0 flex-1 flex-col">
-                    <span className="truncate text-sm font-semibold text-foreground">{m.title}</span>
-                    <span className="text-xs text-muted-foreground">{`${shortDate(m.forecast)} · ${STATUS_TEXT[m.status]}`}</span>
-                  </span>
-                  <DriftChip drift={m.drift} />
-                </li>
-              ))}
-            </ol>
-          )}
-        </li>
-      ))}
-    </ul>
+          <div className="flex flex-wrap items-center gap-3 md:justify-end">
+            <DeliveryBadge summary={row} />
+            <span className="whitespace-nowrap text-sm text-muted-foreground">
+              {`Go-live ${final ? shortDate(final.forecast) : 'TBC'}`}
+            </span>
+          </div>
+        </header>
+        {row.project.executiveNote ? (
+          <p className="text-pretty border-l-4 border-primary pl-4 text-sm leading-relaxed text-foreground">
+            {row.project.executiveNote}
+          </p>
+        ) : null}
+        {row.milestones.length === 0 ? (
+          <p className="text-sm text-muted-foreground">Milestones being defined</p>
+        ) : !hasDates ? (
+          <p className="text-sm text-muted-foreground">Dates to be confirmed</p>
+        ) : (
+          <ExecutiveStations summary={row} compact label={`${row.project.tabLabel} key milestones`} />
+        )}
+      </article>
+    </li>
   )
 }
 
@@ -710,8 +566,11 @@ export function ExecutivePortfolioTimeline({
         <TimelineExport targetId={exportId} fileName={fileName} projects={projects} branding={branding} />
       </PanelHeader>
       <PortfolioHeadline counts={portfolio.counts} total={portfolio.rows.length} />
-      <PortfolioChart portfolio={portfolio} />
-      <PortfolioMobile rows={portfolio.rows} />
+      <ul className="flex flex-col gap-4" aria-label="Projects">
+        {portfolio.rows.map((row) => (
+          <PortfolioProjectStrip key={row.project.slug} row={row} />
+        ))}
+      </ul>
       <ExecutiveLegend locked={anyLocked} />
     </section>
   )
