@@ -744,7 +744,12 @@ class SummaryWriter {
             ? { label: `Behind ${status.days}d`, color: status.days > 14 ? TODAY_RED : AMBER, solid: true }
             : status.kind === 'tbc'
               ? { label: 'Date TBC', color: MUTED, solid: false }
-              : { label: 'Not baselined', color: MUTED, solid: false }
+              : undefined
+
+    if (!chip) {
+      this.deliveryDate(project, x, y + 9.6, width)
+      return
+    }
 
     if (chip.solid) {
       this.color(chip.color, 'fill')
@@ -759,14 +764,17 @@ class SummaryWriter {
     this.pdf.setFont('helvetica', 'bold')
     this.pdf.setFontSize(7.5)
     this.pdf.text(chip.label, x + width / 2, y + 9.6, { align: 'center' })
+    this.deliveryDate(project, x, y + 23, width)
+  }
 
+  private deliveryDate(project: Project, x: number, y: number, width: number) {
     const final = project.finalMilestone
     if (!final || !parseIsoDate(forecastDate(final))) return
     this.pdf.setFont('helvetica', 'normal')
     this.pdf.setFontSize(7)
     this.color(MUTED, 'text')
     const text = final.completedDate ? `Delivered ${shortDate(final.completedDate)}` : formatMilestoneDate(final.date)
-    this.pdf.text(this.truncate(text, width), x + width / 2, y + 23, { align: 'center' })
+    this.pdf.text(this.truncate(text, width), x + width / 2, y, { align: 'center' })
   }
 
   private drawRoadmapTick(x: number, y: number, kind: 'done' | 'open' | 'moved' | 'next') {
