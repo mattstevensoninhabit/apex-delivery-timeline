@@ -6,7 +6,13 @@ import { db } from '@/lib/db'
 import { brands, projectSnapshots, projects } from '@/lib/db/schema'
 import { HEX_COLOR } from '@/lib/branding'
 import type { ProjectSnapshot } from '@/lib/change-notes'
-import type { Milestone, MilestoneStatus } from '@/lib/milestones'
+import { parseIsoDate, toIsoDate } from '@/lib/dates'
+import type { FinalMilestone, Milestone, MilestoneStatus } from '@/lib/milestones'
+import { MAX_EXECUTIVE_MILESTONES } from '@/lib/schedule'
+
+function isoDate(value: unknown): string | undefined {
+  return typeof value === 'string' && parseIsoDate(value) ? value : undefined
+}
 
 const WEEK_MS = 7 * 24 * 60 * 60 * 1000
 
@@ -45,8 +51,17 @@ export type ProjectInput = {
   tabDescription: string
   timelineTitle: string
   todayIndex: number | null
-  milestones: { title: string; date: string; status: MilestoneStatus; dateSlipped: boolean }[]
-  finalMilestone: { title: string; date: string } | null
+  milestones: {
+    title: string
+    date: string
+    status: MilestoneStatus
+    dateSlipped: boolean
+    executive?: boolean
+    baselineDate?: string
+    completedDate?: string
+  }[]
+  finalMilestone: { title: string; date: string; baselineDate?: string; completedDate?: string } | null
+  lockBaseline?: boolean
   notes: string
   executiveNote: string
   milestonesDefining: boolean
@@ -84,23 +99,45 @@ export async function saveProject(
     return { ok: false, error: `Up to ${MAX_MILESTONES} milestones are allowed.` }
   }
 
+  const lockBaseline = input.lockBaseline === true
+  const todayIso = toIsoDate(new Date())
+  const baselineFor = (date: string, existing: unknown) => (lockBaseline ? isoDate(date) : undefined) ?? isoDate(existing)
+
   const milestones: Milestone[] = []
   for (const [index, m] of input.milestones.entries()) {
     const title = clean(m.title)
     if (!title) return { ok: false, error: `Milestone ${index} needs a title.` }
     if (!VALID_STATUSES.has(m.status)) return { ok: false, error: `Milestone ${index} has an invalid status.` }
+    const date = clean(m.date, 40) || 'TBC'
+    const baselineDate = baselineFor(date, m.baselineDate)
+    const completedDate = m.status === 'delivered' ? (isoDate(m.completedDate) ?? todayIso) : undefined
     milestones.push({
       id: index,
       title,
-      date: clean(m.date, 40) || 'TBC',
+      date,
       status: m.status,
       ...(m.dateSlipped ? { dateSlipped: true } : {}),
+      ...(m.executive === true ? { executive: true } : {}),
+      ...(baselineDate ? { baselineDate } : {}),
+      ...(completedDate ? { completedDate } : {}),
     })
+  }
+  if (milestones.filter((m) => m.executive).length > MAX_EXECUTIVE_MILESTONES) {
+    return { ok: false, error: `Up to ${MAX_EXECUTIVE_MILESTONES} milestones can be marked as executive.` }
   }
 
   const finalTitle = input.finalMilestone ? clean(input.finalMilestone.title) : ''
-  const finalMilestone = finalTitle
-    ? { id: milestones.length, title: finalTitle, date: clean(input.finalMilestone?.date, 40) || 'TBC' }
+  const finalDate = clean(input.finalMilestone?.date, 40) || 'TBC'
+  const finalBaseline = baselineFor(finalDate, input.finalMilestone?.baselineDate)
+  const finalCompleted = isoDate(input.finalMilestone?.completedDate)
+  const finalMilestone: FinalMilestone | null = finalTitle
+    ? {
+        id: milestones.length,
+        title: finalTitle,
+        date: finalDate,
+        ...(finalBaseline ? { baselineDate: finalBaseline } : {}),
+        ...(finalCompleted ? { completedDate: finalCompleted } : {}),
+      }
     : null
 
   const todayIndex =
@@ -129,12 +166,20 @@ export async function saveProject(
   const timelineKey = (
     today: number | null,
     list: Milestone[],
-    final: { title: string; date: string } | null,
+    final: FinalMilestone | null,
   ) =>
     JSON.stringify([
       today,
-      list.map((m) => [m.title, m.date, m.status, Boolean(m.dateSlipped)]),
-      final ? [final.title, final.date] : null,
+      list.map((m) => [
+        m.title,
+        m.date,
+        m.status,
+        Boolean(m.dateSlipped),
+        Boolean(m.executive),
+        m.baselineDate ?? null,
+        m.completedDate ?? null,
+      ]),
+      final ? [final.title, final.date, final.baselineDate ?? null, final.completedDate ?? null] : null,
     ])
 
   if (
@@ -162,6 +207,7 @@ export async function saveProject(
       notes: clean(input.notes, MAX_NOTES),
       executiveNote: clean(input.executiveNote, MAX_EXECUTIVE_NOTE),
       milestonesDefining: input.milestonesDefining === true,
+      ...(lockBaseline ? { baselinedAt: sql`now()` } : {}),
       brandSlug,
       pageTitle: clean(input.pageTitle, 120) || null,
       logoAlt: clean(input.logoAlt, 120) || null,

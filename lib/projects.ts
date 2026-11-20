@@ -25,6 +25,7 @@ function toProject(row: ProjectRow, refs: Map<number, LogoRef>): Project {
     notes: row.notes || undefined,
     executiveNote: row.executiveNote || undefined,
     milestonesDefining: row.milestonesDefining,
+    baselinedAt: row.baselinedAt?.toISOString(),
   }
 }
 

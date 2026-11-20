@@ -2,7 +2,9 @@
 
 import { useRef, useState, useTransition, type ChangeEvent, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
-import { ArrowDown, ArrowUp, Download, ListChecks, Plus, Trash2, Upload } from 'lucide-react'
+import { ArrowDown, ArrowUp, Download, ListChecks, Lock, Plus, Trash2, Upload } from 'lucide-react'
+import { formatMilestoneDate, parseIsoDate, toIsoDate } from '@/lib/dates'
+import { daysBetween, MAX_EXECUTIVE_MILESTONES } from '@/lib/schedule'
 import { importTimelineCsv } from '@/lib/csv-import'
 import { describeChanges } from '@/lib/change-notes'
 import { getChangeBaseline, saveProject, type ProjectInput } from '@/app/actions/projects'
@@ -48,8 +50,15 @@ export function ProjectEditor({ project, brands }: { project: Project; brands: B
       date: m.date,
       status: m.status,
       dateSlipped: Boolean(m.dateSlipped),
+      executive: Boolean(m.executive),
+      baselineDate: m.baselineDate,
+      completedDate: m.completedDate,
     })),
   )
+  const [lockBaseline, setLockBaseline] = useState(false)
+  const [finalBaseline, setFinalBaseline] = useState(project.finalMilestone?.baselineDate)
+  const [finalCompleted, setFinalCompleted] = useState(project.finalMilestone?.completedDate ?? 'TBC')
+  const executiveCount = milestones.filter((m) => m.executive).length
   const [todayKey, setTodayKey] = useState<string | null>(() => {
     const index = project.milestones.findIndex((m) => m.id === project.todayMilestoneId)
     return index >= 0 ? (milestones[index]?.key ?? null) : null
@@ -82,6 +91,14 @@ export function ProjectEditor({ project, brands }: { project: Project; brands: B
       ...list,
       { key: nextKey(), title: '', date: 'TBC', status: 'not-started', dateSlipped: false },
     ])
+  }
+
+  function handleLockBaseline() {
+    if (project.baselinedAt && !window.confirm('Re-baselining resets all variance to zero. Continue?')) return
+    setMilestones((list) => list.map((m) => (parseIsoDate(m.date) ? { ...m, baselineDate: m.date } : m)))
+    if (parseIsoDate(finalDate)) setFinalBaseline(finalDate)
+    setLockBaseline(true)
+    setMessage({ type: 'ok', text: 'Baseline set from current dates. Save changes to lock it.' })
   }
 
   async function handleImport(event: ChangeEvent<HTMLInputElement>) {
@@ -141,8 +158,16 @@ export function ProjectEditor({ project, brands }: { project: Project; brands: B
       tabDescription,
       timelineTitle,
       todayIndex: todayIndex >= 0 ? todayIndex : null,
-      milestones: milestones.map(({ title, date, status, dateSlipped }) => ({ title, date, status, dateSlipped })),
-      finalMilestone: hasFinal ? { title: finalTitle, date: finalDate } : null,
+      milestones: milestones.map(({ key: _key, ...m }) => m),
+      finalMilestone: hasFinal
+        ? {
+            title: finalTitle,
+            date: finalDate,
+            baselineDate: finalBaseline,
+            completedDate: parseIsoDate(finalCompleted) ? finalCompleted : undefined,
+          }
+        : null,
+      lockBaseline,
       notes,
       executiveNote,
       milestonesDefining,
@@ -159,7 +184,8 @@ export function ProjectEditor({ project, brands }: { project: Project; brands: B
     startTransition(async () => {
       const result = await saveProject(project.slug, input)
       if (result.ok) {
-        setMessage({ type: 'ok', text: 'Saved. The timeline has been updated.' })
+        setMessage({ type: 'ok', text: lockBaseline ? 'Saved and baseline locked.' : 'Saved. The timeline has been updated.' })
+        setLockBaseline(false)
         router.refresh()
       } else {
         setMessage({ type: 'error', text: result.error })
@@ -321,12 +347,28 @@ export function ProjectEditor({ project, brands }: { project: Project; brands: B
       </section>
 
       <section className="flex flex-col gap-4 rounded-lg border border-border bg-card p-5 text-card-foreground">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="text-lg font-bold">Milestones</h2>
-          <Button type="button" variant="outline" size="sm" onClick={addMilestone}>
-            <Plus aria-hidden="true" />
-            Add milestone
-          </Button>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div className="flex flex-col gap-0.5">
+            <h2 className="text-lg font-bold">Milestones</h2>
+            <p className="text-sm text-muted-foreground">
+              {lockBaseline
+                ? 'Baseline will lock on save.'
+                : project.baselinedAt
+                  ? `Baseline locked ${formatMilestoneDate(toIsoDate(new Date(project.baselinedAt)))}. Date changes now show as variance.`
+                  : 'No baseline yet. Lock the plan to track schedule variance.'}{' '}
+              {`${executiveCount}/${MAX_EXECUTIVE_MILESTONES} on executive roadmap.`}
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={handleLockBaseline}>
+              <Lock aria-hidden="true" />
+              {project.baselinedAt ? 'Re-baseline' : 'Lock plan as baseline'}
+            </Button>
+            <Button type="button" variant="outline" size="sm" onClick={addMilestone}>
+              <Plus aria-hidden="true" />
+              Add milestone
+            </Button>
+          </div>
         </div>
 
         {milestones.length === 0 ? (
@@ -415,7 +457,29 @@ export function ProjectEditor({ project, brands }: { project: Project; brands: B
                     />
                     {"Today marker"}
                   </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      className="size-4 accent-primary"
+                      checked={Boolean(m.executive)}
+                      disabled={!m.executive && executiveCount >= MAX_EXECUTIVE_MILESTONES}
+                      onChange={(e) => updateMilestone(m.key, { executive: e.target.checked })}
+                    />
+                    Show on executive roadmap
+                  </label>
                 </div>
+                <BaselineHint baselineDate={m.baselineDate} date={m.completedDate ?? m.date} />
+                {m.status === 'delivered' && (
+                  <div className="md:w-1/3">
+                    <FieldGroup label="Delivered on">
+                      <DatePicker
+                        label={`Milestone ${index} delivered date`}
+                        value={m.completedDate ?? 'TBC'}
+                        onChange={(d) => updateMilestone(m.key, { completedDate: parseIsoDate(d) ? d : undefined })}
+                      />
+                    </FieldGroup>
+                  </div>
+                )}
               </li>
             ))}
           </ol>
@@ -440,6 +504,12 @@ export function ProjectEditor({ project, brands }: { project: Project; brands: B
             <FieldGroup label="Date">
               <DatePicker label="Final delivery date" value={finalDate} onChange={setFinalDate} />
             </FieldGroup>
+            <FieldGroup label="Delivered on (optional)">
+              <DatePicker label="Final delivered date" value={finalCompleted} onChange={setFinalCompleted} />
+            </FieldGroup>
+            <div className="flex items-end">
+              <BaselineHint baselineDate={finalBaseline} date={parseIsoDate(finalCompleted) ? finalCompleted : finalDate} />
+            </div>
           </div>
         )}
       </section>
@@ -456,6 +526,18 @@ export function ProjectEditor({ project, brands }: { project: Project; brands: B
         </Button>
       </div>
     </form>
+  )
+}
+
+function BaselineHint({ baselineDate, date }: { baselineDate?: string; date: string }) {
+  if (!baselineDate) return null
+  const days = daysBetween(baselineDate, date)
+  const variance =
+    days === undefined || days === 0 ? 'on baseline' : days > 0 ? `${days}d behind` : `${-days}d ahead`
+  return (
+    <p className={`text-xs ${days && days > 0 ? 'text-destructive' : 'text-muted-foreground'}`}>
+      {`Baseline ${formatMilestoneDate(baselineDate)} · ${variance}`}
+    </p>
   )
 }
 
