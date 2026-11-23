@@ -48,5 +48,6 @@ export type Project = {
   baselinedAt?: string
   notes?: string
   executiveNote?: string
+  weeklyUpdate?: string
   milestonesDefining?: boolean
 }

@@ -1,7 +1,7 @@
 import { Check, Clock, Flag, Lock, LockOpen, Pause, TriangleAlert } from 'lucide-react'
 import { formatMilestoneDate } from '@/lib/dates'
 import { cn } from '@/lib/utils'
-import { TimelineExport } from '@/components/timeline-export'
+import { TimelineExport, type DeckConfig } from '@/components/timeline-export'
 import {
   buildExecutiveProject,
   buildPortfolio,
@@ -577,11 +577,13 @@ export function ExecutivePortfolioTimeline({
   lead = 'AI Pod',
   fileName = 'executive-timeline',
   branding,
+  deck,
 }: {
   projects: Project[]
   lead?: string
   fileName?: string
   branding?: PdfBranding
+  deck?: DeckConfig
 }) {
   const portfolio = buildPortfolio(projects)
   const exportId = 'exec-export-all'
@@ -593,7 +595,7 @@ export function ExecutivePortfolioTimeline({
       className="timeline-panel flex flex-col gap-8 rounded-3xl p-6 md:p-10"
     >
       <PanelHeader eyebrow="Executive view" title={`All ${lead} projects`} titleId="exec-title-all">
-        <TimelineExport targetId={exportId} fileName={fileName} projects={projects} branding={branding} />
+        <TimelineExport targetId={exportId} fileName={fileName} projects={projects} branding={branding} deck={deck} />
       </PanelHeader>
       <PortfolioHeadline counts={portfolio.counts} total={portfolio.rows.length} />
       <ul className="flex flex-col gap-4" aria-label="Projects">

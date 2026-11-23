@@ -1,6 +1,7 @@
 import Link from 'next/link'
 import { ArrowRight } from 'lucide-react'
-import { brandStyle, brandingTitle, resolveBranding, type Brand } from '@/lib/branding'
+import { PodsDeckExport } from '@/components/pods-deck-export'
+import { brandStyle, brandingTitle, overrideStyle, pdfBranding, resolveBranding, type Brand } from '@/lib/branding'
 import { formatMilestoneDate, parseIsoDate } from '@/lib/dates'
 import type { Project } from '@/lib/milestones'
 import { nextMilestone, overallHealth, progress, startOfToday, type HealthTone } from '@/lib/project-health'
@@ -157,11 +158,26 @@ export function PodLanding({ pods, shell }: { pods: Pod[]; shell?: Brand }) {
   return (
     <div style={shell ? brandStyle(shell.colors) : undefined} className="min-h-screen bg-background text-foreground">
       <main className="mx-auto flex max-w-screen-xl flex-col gap-8 px-4 py-10 md:px-8 md:py-14">
-        <header className="flex flex-col gap-2">
-          <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">All pods</p>
-          <h1 className="text-balance text-3xl font-extrabold uppercase tracking-tight md:text-4xl">
-            Delivery <span className="text-primary">Timelines</span>
-          </h1>
+        <header className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
+          <div className="flex flex-col gap-2">
+            <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">All pods</p>
+            <h1 className="text-balance text-3xl font-extrabold uppercase tracking-tight md:text-4xl">
+              Delivery <span className="text-primary">Timelines</span>
+            </h1>
+          </div>
+          <PodsDeckExport
+            branding={shell ? pdfBranding(resolveBranding(shell)) : undefined}
+            sections={pods.map(({ brand, projects }) => ({
+              brandName: brand.name,
+              lead: [brand.headerLead, brand.headerAccent].filter(Boolean).join(' ') || brand.name,
+              branding: pdfBranding(resolveBranding(brand)),
+              items: projects.map((project) => ({
+                project,
+                style: { ...brandStyle(brand.colors), ...overrideStyle(brand, project) },
+                branding: pdfBranding(resolveBranding(brand, project)),
+              })),
+            }))}
+          />
         </header>
         {pods.length === 0 ? (
           <p className="text-muted-foreground">
