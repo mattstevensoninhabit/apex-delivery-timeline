@@ -19,6 +19,17 @@ export function BrandPage({
   initialView?: string
 }) {
   const brandBranding = resolveBranding(brand)
+  const deck = {
+    brandName: brand.name,
+    brandSlug: brand.slug,
+    lead: brand.headerLead || brand.name,
+    branding: pdfBranding(brandBranding),
+    items: projects.map((project) => ({
+      project,
+      style: { ...brandStyle(brand.colors), ...overrideStyle(brand, project) },
+      branding: pdfBranding(resolveBranding(brand, project)),
+    })),
+  }
 
   return (
     <div style={brandStyle(brand.colors)} className="min-h-screen bg-background text-foreground">
@@ -54,6 +65,7 @@ export function BrandPage({
                   lead={brand.headerLead || brand.name}
                   fileName={`${brand.slug}-executive-timeline`}
                   branding={pdfBranding(brandBranding)}
+                  deck={deck}
                 />
               ),
             },

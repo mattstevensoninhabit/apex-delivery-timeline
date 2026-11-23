@@ -64,6 +64,7 @@ export type ProjectInput = {
   lockBaseline?: boolean
   notes: string
   executiveNote: string
+  weeklyUpdate?: string
   milestonesDefining: boolean
   brandSlug: string
   pageTitle: string
@@ -79,6 +80,18 @@ function optionalColor(value: unknown): string | null | false {
 
 const MAX_NOTES = 2000
 const MAX_EXECUTIVE_NOTE = 300
+const MAX_WEEKLY_UPDATE = 4000
+
+function cleanMultiline(value: unknown, max: number) {
+  if (typeof value !== 'string') return ''
+  return value
+    .replace(/\r\n?/g, '\n')
+    .split('\n')
+    .map((line) => line.replace(/\s+$/, ''))
+    .join('\n')
+    .replace(/^\n+|\n+$/g, '')
+    .slice(0, max)
+}
 
 const VALID_STATUSES = new Set<string>(['delivered', 'at-risk', 'in-progress', 'not-started', 'deferred'] satisfies MilestoneStatus[])
 const MAX_MILESTONES = 50
@@ -206,6 +219,7 @@ export async function saveProject(
       finalMilestone,
       notes: clean(input.notes, MAX_NOTES),
       executiveNote: clean(input.executiveNote, MAX_EXECUTIVE_NOTE),
+      weeklyUpdate: cleanMultiline(input.weeklyUpdate, MAX_WEEKLY_UPDATE),
       milestonesDefining: input.milestonesDefining === true,
       ...(lockBaseline ? { baselinedAt: sql`now()` } : {}),
       brandSlug,

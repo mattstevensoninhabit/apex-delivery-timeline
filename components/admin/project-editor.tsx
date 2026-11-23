@@ -42,6 +42,7 @@ export function ProjectEditor({ project, brands }: { project: Project; brands: B
   const [timelineTitle, setTimelineTitle] = useState(project.timelineTitle)
   const [notes, setNotes] = useState(project.notes ?? '')
   const [executiveNote, setExecutiveNote] = useState(project.executiveNote ?? '')
+  const [weeklyUpdate, setWeeklyUpdate] = useState(project.weeklyUpdate ?? '')
   const [milestonesDefining, setMilestonesDefining] = useState(Boolean(project.milestonesDefining))
   const [milestones, setMilestones] = useState<DraftMilestone[]>(() =>
     project.milestones.map((m) => ({
@@ -170,6 +171,7 @@ export function ProjectEditor({ project, brands }: { project: Project; brands: B
       lockBaseline,
       notes,
       executiveNote,
+      weeklyUpdate,
       milestonesDefining,
       brandSlug,
       pageTitle,
@@ -272,6 +274,25 @@ export function ProjectEditor({ project, brands }: { project: Project; brands: B
             <p id={`exec-note-hint-${project.slug}`} className="flex justify-between gap-4 text-xs text-muted-foreground">
               <span>Shown in the Portfolio overview of the executive summary.</span>
               <span>{executiveNote.length}/300</span>
+            </p>
+          </div>
+          <div className="flex flex-col gap-1.5 md:col-span-2">
+            <Field label="Weekly update (PowerPoint, optional)">
+              <textarea
+                className={`${inputClass} h-auto min-h-36 resize-y py-2 font-mono text-xs leading-relaxed`}
+                value={weeklyUpdate}
+                onChange={(e) => setWeeklyUpdate(e.target.value)}
+                maxLength={4000}
+                rows={7}
+                aria-describedby={`weekly-hint-${project.slug}`}
+                placeholder={'Overall completion is at 39% done\n\n- Migration 40% (1192 of 3,011)\n  - AgenticAI 37% (30 of 81)\n- Release cadence moved to multiple per month'}
+              />
+            </Field>
+            <p id={`weekly-hint-${project.slug}`} className="flex justify-between gap-4 text-xs text-muted-foreground">
+              <span>
+                {'"What happened last week" slide. Start a line with "- " for a bullet and "  - " for a sub-bullet. Blank lines add spacing. Leave empty to auto-generate from milestones.'}
+              </span>
+              <span className="shrink-0">{weeklyUpdate.length}/4000</span>
             </p>
           </div>
           <div className="flex flex-col gap-1.5 md:col-span-2">

@@ -97,7 +97,9 @@ export function buildExecutiveProject(project: Project, now = new Date()): Execu
   keys.sort((a, b) => {
     if (a.forecastTime === undefined) return b.forecastTime === undefined ? 0 : 1
     if (b.forecastTime === undefined) return -1
-    return a.forecastTime - b.forecastTime
+    const diff = a.forecastTime - b.forecastTime
+    if (diff !== 0) return diff
+    return Number(b.status === 'delivered') - Number(a.status === 'delivered')
   })
 
   const final = project.finalMilestone
@@ -126,7 +128,11 @@ export function buildExecutiveProject(project: Project, now = new Date()): Execu
     complete: regular.filter((k) => k.status === 'delivered').length,
     total: regular.length,
     next: regular.find((k) => k.isNext),
-    todayIndex: keys.filter((k) => k.forecastTime !== undefined && k.forecastTime < today).length,
+    todayIndex: keys.filter(
+      (k) =>
+        k.forecastTime !== undefined &&
+        (k.forecastTime < today || (k.status === 'delivered' && k.forecastTime <= today)),
+    ).length,
   }
 }
 
