@@ -218,27 +218,101 @@ function addTimeline(pptx: PptxGenJS, item: DeckProject, options: DeckOptions, t
   }
 }
 
-export async function downloadExecutiveDeck(items: DeckProject[], options: DeckOptions) {
-  const { default: Pptx } = await import('pptxgenjs')
-  const pptx = new Pptx()
-  pptx.layout = 'LAYOUT_WIDE'
-  pptx.title = `${options.brandName} weekly update`
-  pptx.company = options.brandName
+type Logo = { data: string; ratio: number }
 
-  const brandTheme = themeFor(options.branding)
-  const brandLogo = await loadLogo(options.branding?.logoUrl)
-  addCover(pptx, options, brandTheme, brandLogo)
+function logoLoader() {
+  const cache = new Map<string, Promise<Logo | undefined>>()
+  return (url?: string) => {
+    if (!url) return Promise.resolve(undefined)
+    if (!cache.has(url)) cache.set(url, loadLogo(url))
+    return cache.get(url)!
+  }
+}
 
+async function addProjectSlides(
+  pptx: PptxGenJS,
+  items: DeckProject[],
+  options: DeckOptions,
+  getLogo: (url?: string) => Promise<Logo | undefined>,
+) {
+  const sectionTheme = themeFor(options.branding)
+  const sectionLogo = await getLogo(options.branding?.logoUrl)
   for (const [index, item] of items.entries()) {
-    const theme = item.branding ? themeFor(item.branding) : brandTheme
-    const logo =
-      item.branding?.logoUrl && item.branding.logoUrl !== options.branding?.logoUrl
-        ? await loadLogo(item.branding.logoUrl)
-        : brandLogo
+    const theme = item.branding ? themeFor(item.branding) : sectionTheme
+    const logo = item.branding?.logoUrl ? await getLogo(item.branding.logoUrl) : sectionLogo
     addDivider(pptx, item, index, items.length, theme, logo)
     addSummary(pptx, item, options, theme)
     addTimeline(pptx, item, options, theme)
   }
+}
 
+async function createDeck(title: string, company: string) {
+  const { default: Pptx } = await import('pptxgenjs')
+  const pptx = new Pptx()
+  pptx.layout = 'LAYOUT_WIDE'
+  pptx.title = title
+  pptx.company = company
+  return pptx
+}
+
+export async function downloadExecutiveDeck(items: DeckProject[], options: DeckOptions) {
+  const pptx = await createDeck(`${options.brandName} weekly update`, options.brandName)
+  const getLogo = logoLoader()
+  addCover(pptx, options, themeFor(options.branding), await getLogo(options.branding?.logoUrl))
+  await addProjectSlides(pptx, items, options, getLogo)
+  await pptx.writeFile({ fileName: options.fileName })
+}
+
+export type DeckSection = {
+  brandName: string
+  lead: string
+  branding?: PdfBranding
+  items: DeckProject[]
+}
+
+function addPodDivider(pptx: PptxGenJS, section: DeckSection, index: number, total: number, logo?: Logo) {
+  const theme = themeFor(section.branding)
+  const accent = hex(section.branding?.accent, '87CF36')
+  const muted = mix(theme.background, 'FFFFFF', 0.7)
+  const slide = pptx.addSlide()
+  slide.background = { color: theme.background }
+  slide.addShape(pptx.ShapeType.rect, { x: 0, y: 0, w: 0.35, h: SLIDE_H, fill: { color: accent }, line: { color: accent } })
+  if (logo) {
+    const { w, h } = fitBox(logo.ratio, 3.2, 1.1)
+    slide.addImage({ data: stripDataPrefix(logo.data), x: 1.2, y: 1.2, w, h })
+  }
+  const count = section.items.length
+  slide.addText(
+    [
+      { text: `Pod ${index + 1} of ${total}`.toUpperCase(), options: { fontSize: 14, bold: true, charSpacing: 3, color: muted, breakLine: true } },
+      { text: section.lead || section.brandName, options: { fontSize: 54, bold: true, breakLine: true } },
+      { text: section.brandName, options: { fontSize: 22, color: mix(theme.background, 'FFFFFF', 0.85), breakLine: true } },
+      { text: `${count} project${count === 1 ? '' : 's'}`, options: { fontSize: 16, color: muted } },
+    ],
+    { x: 1.2, y: 3.0, w: SLIDE_W - 2.4, h: 3.6, valign: 'top', color: 'FFFFFF', fontFace: FONT, fit: 'shrink' },
+  )
+}
+
+export async function downloadPodsDeck(
+  sections: DeckSection[],
+  options: { title: string; branding?: PdfBranding; fileName: string },
+) {
+  const pptx = await createDeck(`${options.title} weekly update`, options.title)
+  const getLogo = logoLoader()
+  addCover(
+    pptx,
+    { brandName: options.title, lead: options.title, branding: options.branding, fileName: options.fileName },
+    themeFor(options.branding),
+    undefined,
+  )
+  for (const [index, section] of sections.entries()) {
+    addPodDivider(pptx, section, index, sections.length, await getLogo(section.branding?.logoUrl))
+    await addProjectSlides(
+      pptx,
+      section.items,
+      { brandName: section.brandName, lead: section.lead, branding: section.branding, fileName: options.fileName },
+      getLogo,
+    )
+  }
   await pptx.writeFile({ fileName: options.fileName })
 }
